@@ -1,0 +1,90 @@
+<div class="setup-container">
+  <mat-card class="setup-card">
+    <mat-card-header>
+      <mat-card-title>Configuración del Campeonato</mat-card-title>
+      <mat-card-subtitle>Ingrese los datos del campeonato y suba el orden de paso</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="setupForm" (ngSubmit)="onSubmit()">
+        <!-- Championship Name -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Nombre del Campeonato</mat-label>
+          <input matInput formControlName="championshipName" placeholder="Ej: Campeonato Nacional 2024">
+          <mat-icon matSuffix>event</mat-icon>
+        </mat-form-field>
+
+        <!-- Excel File Upload -->
+        <div class="file-upload-section">
+          <h3>Orden de Paso (Excel)</h3>
+          <div class="file-upload-area" (click)="fileInput.click()">
+            <mat-icon>cloud_upload</mat-icon>
+            <p *ngIf="!fileName">Click para seleccionar archivo Excel</p>
+            <p *ngIf="fileName" class="file-name">{{ fileName }}</p>
+            <input #fileInput type="file" accept=".xlsx,.xls" (change)="onFileSelected($event)" hidden>
+          </div>
+        </div>
+
+        <!-- Judges Section -->
+        <div class="judges-section">
+          <div class="section-header">
+            <h3>Jueces</h3>
+            <button mat-raised-button color="primary" type="button" (click)="addJudge()">
+              <mat-icon>add</mat-icon>
+              Agregar Juez
+            </button>
+          </div>
+
+          <div formArrayName="judges" class="judges-list">
+            <div *ngFor="let judge of judges.controls; let i = index" [formGroupName]="i" class="judge-row">
+              <mat-form-field appearance="outline" class="judge-name">
+                <mat-label>Nombre del Juez</mat-label>
+                <input matInput formControlName="name" placeholder="Nombre completo">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="judge-role">
+                <mat-label>Rol</mat-label>
+                <mat-select formControlName="role">
+                  <mat-option *ngFor="let role of judgeRoles" [value]="role">
+                    {{ role }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <button mat-icon-button color="warn" type="button" (click)="removeJudge(i)" 
+                      [disabled]="judges.length === 1">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <div class="judge-rules">
+            <p><strong>Reglas de Jueces:</strong></p>
+            <ul>
+              <li>DA: exactamente 1</li>
+              <li>DB: exactamente 1</li>
+              <li>E: entre 1 y 4</li>
+              <li>A: entre 1 y 4</li>
+              <li>L: 0 o 1 (opcional)</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Error Message -->
+        <div *ngIf="error" class="error-message">
+          <mat-icon>error</mat-icon>
+          <span>{{ error }}</span>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="actions">
+          <button mat-raised-button color="primary" type="submit" [disabled]="loading">
+            <mat-icon *ngIf="!loading">start</mat-icon>
+            <span *ngIf="loading">Procesando...</span>
+            <span *ngIf="!loading">Iniciar Campeonato</span>
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

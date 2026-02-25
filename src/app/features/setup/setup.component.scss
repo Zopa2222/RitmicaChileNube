@@ -1,0 +1,184 @@
+.setup-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+  background: var(--primary-gradient);
+}
+
+.setup-card {
+  max-width: 900px;
+  width: 100%;
+  border-radius: 24px !important;
+  border: none !important;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+
+  mat-card-header {
+    background: white;
+    padding: 30px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+
+    mat-card-title {
+      font-size: 28px;
+      font-weight: 700;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  }
+
+  mat-card-content {
+    padding: 40px;
+  }
+}
+
+.file-upload-section {
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 20px;
+  }
+}
+
+.file-upload-area {
+  border: 2px dashed #e2e8f0;
+  border-radius: 20px;
+  padding: 50px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #f8fafc;
+
+  &:hover {
+    border-color: #667eea;
+    background-color: #eff6ff;
+    transform: scale(1.01);
+  }
+
+  mat-icon {
+    font-size: 64px;
+    width: 64px;
+    height: 64px;
+    color: #667eea;
+    margin-bottom: 15px;
+  }
+
+  p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .file-name {
+    color: #4c51bf;
+    font-weight: 600;
+    margin-top: 10px;
+    display: inline-block;
+    padding: 8px 16px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 20px;
+  }
+}
+
+.judges-section {
+  margin-top: 40px;
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+
+    h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin: 0;
+    }
+  }
+}
+
+.judge-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 15px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  border: 1px solid #f1f5f9;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: translateX(5px);
+    border-color: #e2e8f0;
+  }
+
+  .judge-name {
+    flex: 2;
+  }
+
+  .judge-role {
+    flex: 1;
+  }
+
+  button {
+    color: #ef4444;
+  }
+}
+
+.judge-rules {
+  background: linear-gradient(to right, #f8fafc, #f1f5f9);
+  padding: 20px;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+  margin-top: 30px;
+
+  p {
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 10px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-secondary);
+
+    li {
+      margin-bottom: 6px;
+    }
+  }
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 20px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  color: #b91c1c;
+  margin: 20px 0;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f5f9;
+
+  button {
+    height: 50px;
+    font-size: 16px;
+    padding: 0 40px !important;
+  }
+}

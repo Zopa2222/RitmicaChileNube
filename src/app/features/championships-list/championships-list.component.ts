@@ -1,0 +1,122 @@
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
+import { ApiService } from '../../core/services/api.service';
+
+interface ChampionshipItem {
+  id: string;
+  nombre: string;
+  categorias: string[];
+  jueces: Array<{ nombre: string, rol: string }>;
+  created_at: string;
+}
+
+@Component({
+  selector: 'app-championships-list',
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatCardModule,
+    MatButtonModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule
+  ],
+  templateUrl: './championships-list.component.html',
+  styleUrls: ['./championships-list.component.scss']
+})
+export class ChampionshipsListComponent implements OnInit {
+  championships: ChampionshipItem[] = [];
+  filteredChampionships: ChampionshipItem[] = [];
+  searchTerm: string = '';
+  loading: boolean = false;
+
+  constructor(
+    private apiService: ApiService,
+    private router: Router,
+    private snackBar: MatSnackBar
+  ) { }
+
+  ngOnInit(): void {
+    this.loadChampionships();
+  }
+
+  loadChampionships(): void {
+    this.loading = true;
+    this.apiService.getChampionships().subscribe({
+      next: (response) => {
+        console.log('Championships loaded:', response); // DEBUG
+        this.championships = response.campeonatos;
+        this.filteredChampionships = this.championships;
+
+        // DEBUG: Log first championship to verify judges
+        if (this.championships.length > 0) {
+          console.log('First championship jueces:', this.championships[0].jueces);
+        }
+
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('Error loading championships:', err);
+        this.snackBar.open('Error al cargar campeonatos', 'Cerrar', { duration: 3000 });
+        this.loading = false;
+      }
+    });
+  }
+
+  filterChampionships(): void {
+    const term = this.searchTerm.toLowerCase();
+    this.filteredChampionships = this.championships.filter(c =>
+      c.nombre.toLowerCase().includes(term)
+    );
+  }
+
+  downloadExcel(championship: ChampionshipItem): void {
+    this.apiService.exportChampionship(championship.id).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${championship.nombre}_resultados.xlsx`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        this.snackBar.open('Descarga iniciada', 'OK', { duration: 2000 });
+      },
+      error: (err) => {
+        console.error('Error downloading:', err);
+        this.snackBar.open('Error al descargar', 'Cerrar', { duration: 3000 });
+      }
+    });
+  }
+
+  goHome(): void {
+    this.router.navigate(['/']);
+  }
+
+  getJudgesNames(jueces: Array<{ nombre: string, rol: string }>): string {
+    if (!jueces || jueces.length === 0) return '';
+    return jueces.map(j => j.nombre).join(', ');
+  }
+
+  formatDate(dateString: string): string {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-CL', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  }
+}

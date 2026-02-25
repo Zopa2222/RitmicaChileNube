@@ -1,0 +1,50 @@
+<div class="landing-container">
+    <!-- Background Decor -->
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+    <div class="bg-shape shape-3"></div>
+
+    <div class="content-wrapper">
+        <!-- Hero Section -->
+        <header class="hero-section">
+            <div class="logo-container">
+                <mat-icon class="hero-icon">emoji_events</mat-icon>
+            </div>
+            <h1 class="hero-title">
+                Sistema de Puntajes
+                <span class="highlight">Gimnasia Rítmica</span>
+            </h1>
+        </header>
+
+        <!-- Action Grid -->
+        <div class="action-grid">
+            <!-- Card: Create Championship -->
+            <div class="action-card create-card" (click)="createNewChampionship()">
+                <div class="card-content">
+                    <div class="icon-wrapper">
+                        <mat-icon>add_circle</mat-icon>
+                    </div>
+                    <h2>Crear Nuevo Campeonato</h2>
+                    <p>Configura un nuevo torneo, define categorías y asigna jueces.</p>
+                </div>
+                <div class="card-action">
+                    <span class="fake-button">Comenzar</span>
+                </div>
+            </div>
+
+            <!-- Card: View Championships -->
+            <div class="action-card view-card" (click)="viewChampionships()">
+                <div class="card-content">
+                    <div class="icon-wrapper">
+                        <mat-icon>list_alt</mat-icon>
+                    </div>
+                    <h2>Ver Campeonatos</h2>
+                    <p>Accede al historial de torneos, revisa puntajes y exporta resultados.</p>
+                </div>
+                <div class="card-action">
+                    <span class="fake-button">Explorar</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

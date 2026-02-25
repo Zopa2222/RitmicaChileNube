@@ -1,0 +1,119 @@
+<div class="scoring-container">
+    <!-- Sidebar with categories -->
+    <mat-sidenav-container class="sidenav-container">
+        <mat-sidenav mode="side" opened class="category-sidebar">
+            <div class="sidebar-header">
+                <h2>Categorías</h2>
+                <p *ngIf="championship">{{ championship.name }}</p>
+            </div>
+
+            <mat-nav-list>
+                <mat-list-item *ngFor="let category of championship?.categories" (click)="selectCategory(category)"
+                    [class.active]="currentCategory?.name === category.name">
+                    <span matListItemTitle>{{ category.name }}</span>
+                    <span matListItemLine>{{ category.gymnasts.length }} gimnastas</span>
+                </mat-list-item>
+            </mat-nav-list>
+
+            <div class="sidebar-footer">
+                <button mat-raised-button color="accent" (click)="goToExport()" class="full-width">
+                    <mat-icon>file_download</mat-icon>
+                    Exportar Resultados
+                </button>
+            </div>
+        </mat-sidenav>
+
+        <!-- Main content area -->
+        <mat-sidenav-content>
+            <div class="scoring-content" *ngIf="currentCategory">
+                <!-- Header -->
+                <div class="content-header">
+                    <h1>{{ currentCategory.name }}</h1>
+                    <div class="header-actions">
+                        <button mat-raised-button (click)="addGymnast()">
+                            <mat-icon>add</mat-icon>
+                            Agregar Gimnasta
+                        </button>
+                        <button mat-raised-button color="primary" (click)="sortByScore()">
+                            <mat-icon>sort</mat-icon>
+                            Ordenar por Puntaje
+                        </button>
+                        <button mat-raised-button color="accent" (click)="saveCategory()">
+                            <mat-icon>save</mat-icon>
+                            Guardar Categoría
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Score Grid -->
+                <div class="score-grid-container">
+                    <table class="score-table">
+                        <thead>
+                            <tr>
+                                <th class="drag-column"></th>
+                                <th class="name-column">Nombre</th>
+                                <th class="club-column">Club</th>
+                                <th *ngFor="let col of scoreColumns" class="score-column">{{ col }}</th>
+                                <th class="desc-column">Desc</th>
+                                <th class="total-column">Total</th>
+                                <th class="actions-column">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody cdkDropList (cdkDropListDropped)="drop($event)">
+                            <tr *ngFor="let gymnast of currentCategory.gymnasts; let i = index" cdkDrag>
+                                <!-- Drag handle -->
+                                <td class="drag-handle" cdkDragHandle>
+                                    <mat-icon>drag_indicator</mat-icon>
+                                </td>
+
+                                <!-- Name -->
+                                <td class="name-cell">
+                                    <input type="text" [(ngModel)]="gymnast.name" placeholder="Nombre"
+                                        class="cell-input">
+                                </td>
+
+                                <!-- Club -->
+                                <td class="club-cell">
+                                    <input type="text" [(ngModel)]="gymnast.club" placeholder="Club" class="cell-input">
+                                </td>
+
+                                <!-- Score columns -->
+                                <td *ngFor="let col of scoreColumns" class="score-cell">
+                                    <input type="number" step="0.1" min="0" [ngModel]="gymnast.scores[col]"
+                                        (ngModelChange)="onScoreChange(gymnast, col, $event)"
+                                        [class.error]="hasScoreError(gymnast, col)" class="cell-input score-input">
+                                </td>
+
+                                <!-- Desc -->
+                                <td class="desc-cell">
+                                    <input type="number" step="0.1" min="0" [ngModel]="gymnast.desc"
+                                        (ngModelChange)="onDescChange(gymnast, $event)" class="cell-input score-input">
+                                </td>
+
+                                <!-- Total -->
+                                <td class="total-cell">
+                                    <span class="total-score">{{ gymnast.totalScore.toFixed(2) }}</span>
+                                </td>
+
+                                <!-- Actions -->
+                                <td class="actions-cell">
+                                    <button mat-icon-button color="warn" (click)="deleteGymnast(i)"
+                                        matTooltip="Eliminar">
+                                        <mat-icon>delete</mat-icon>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Empty state -->
+            <div class="empty-state" *ngIf="!currentCategory">
+                <mat-icon>category</mat-icon>
+                <h2>Seleccione una categoría</h2>
+                <p>Elija una categoría del menú lateral para comenzar a ingresar puntajes</p>
+            </div>
+        </mat-sidenav-content>
+    </mat-sidenav-container>
+</div>

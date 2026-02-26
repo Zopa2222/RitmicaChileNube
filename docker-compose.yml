@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # MongoDB service
+  mongo:
+    image: mongo:6.0
+    container_name: ritmica_mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: gymnastics_scoring
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ritmica_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ritmica_backend
+    ports:
+      - "8080:8080"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/
+      FLASK_PORT: 8080
+      FLASK_DEBUG: "True"
+      CORS_ORIGINS: http://localhost:4200
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - ritmica_network
+
+  # Frontend service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ritmica_frontend
+    ports:
+      - "4200:4200"
+    depends_on:
+      - backend
+    networks:
+      - ritmica_network
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  ritmica_network:
+    driver: bridge

@@ -8,11 +8,11 @@
         <!-- Hero Section -->
         <header class="hero-section">
             <div class="logo-container">
-                <mat-icon class="hero-icon">emoji_events</mat-icon>
+                <img src="assets/logo.jpeg" alt="Ritmica Chile" class="hero-logo-img">
             </div>
             <h1 class="hero-title">
                 Sistema de Puntajes
-                <span class="highlight">Gimnasia Rítmica</span>
+                <span class="highlight">Ritmica Chile</span>
             </h1>
         </header>
 
@@ -43,6 +43,20 @@
                 </div>
                 <div class="card-action">
                     <span class="fake-button">Explorar</span>
+                </div>
+            </div>
+
+            <!-- Card: Finalists -->
+            <div class="action-card finalists-card" (click)="viewFinalists()">
+                <div class="card-content">
+                    <div class="icon-wrapper">
+                        <mat-icon>emoji_events</mat-icon>
+                    </div>
+                    <h2>Selección de Finalistas</h2>
+                    <p>Calcula las 8 mejores por categoría en cada zona, tomando el mejor puntaje entre ambos controles.</p>
+                </div>
+                <div class="card-action">
+                    <span class="fake-button">Ver Finalistas</span>
                 </div>
             </div>
         </div>

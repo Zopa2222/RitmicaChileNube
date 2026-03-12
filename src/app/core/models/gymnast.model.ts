@@ -1,6 +1,7 @@
 // Gymnast interface
 export interface Gymnast {
     id?: string;
+    rut?: string;
     name: string;
     club: string;
     scores: { [key: string]: number }; // DA, DB, E1, E2, A1, etc.
@@ -12,6 +13,7 @@ export interface Gymnast {
 // Create empty gymnast
 export function createEmptyGymnast(order: number): Gymnast {
     return {
+        rut: '',
         name: '',
         club: '',
         scores: {},

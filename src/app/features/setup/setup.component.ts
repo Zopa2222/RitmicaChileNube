@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
+import Swal from 'sweetalert2';
 
 import { ExcelService } from '../../core/services/excel.service';
 import { ChampionshipService } from '../../core/services/championship.service';
@@ -41,6 +42,18 @@ export class SetupComponent {
     error: string = '';
 
     judgeRoles: JudgeRole[] = ['DA', 'DB', 'E', 'A', 'L'];
+
+    readonly currentYear = new Date().getFullYear();
+
+    etapasCampeonato: string[] = [
+        `1er Control Zona Norte ${this.currentYear}`,
+        `2do Control Zona Norte ${this.currentYear}`,
+        `1er Control Zona Centro ${this.currentYear}`,
+        `2do Control Zona Centro ${this.currentYear}`,
+        `1er Control Zona Sur ${this.currentYear}`,
+        `2do Control Zona Sur ${this.currentYear}`,
+        `Final Nacional ${this.currentYear}`
+    ];
 
     constructor(
         private fb: FormBuilder,
@@ -94,13 +107,30 @@ export class SetupComponent {
         const aCount = judges.filter(j => j.role === 'A').length;
         const lCount = judges.filter(j => j.role === 'L').length;
 
-        if (daCount !== 1) return 'Debe haber exactamente 1 juez DA';
-        if (dbCount !== 1) return 'Debe haber exactamente 1 juez DB';
+        if (daCount < 1 || daCount > 2) return 'Debe haber entre 1 y 2 jueces DA';
+        if (dbCount < 1 || dbCount > 2) return 'Debe haber entre 1 y 2 jueces DB';
         if (eCount < 1 || eCount > 4) return 'Debe haber entre 1 y 4 jueces E';
         if (aCount < 1 || aCount > 4) return 'Debe haber entre 1 y 4 jueces A';
         if (lCount > 1) return 'Puede haber máximo 1 juez L';
 
         return null;
+    }
+
+    goHome(): void {
+        Swal.fire({
+            title: '¿Volver al Menú Principal?',
+            text: 'Se perderán los datos que no hayan sido guardados.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sí, volver',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                this.router.navigate(['/']);
+            }
+        });
     }
 
     async onSubmit(): Promise<void> {
@@ -134,12 +164,18 @@ export class SetupComponent {
 
             // 2. Add judges
             const judgesData = this.judges.value as { name: string; role: JudgeRole }[];
-            const roleCounters: { [key: string]: number } = { E: 1, A: 1 };
+            const roleCounters: { [key: string]: number } = { E: 1, A: 1, DA: 1, DB: 1 };
 
             for (const judge of judgesData) {
-                // Convert role with index (E -> E1, E2, etc.)
+                // Convert role with index for DA/DB second judge and E/A
                 let rolBackend: string = judge.role;
-                if (judge.role === 'E' || judge.role === 'A') {
+                if (judge.role === 'DA') {
+                    rolBackend = roleCounters['DA'] === 1 ? 'DA' : 'DA2';
+                    roleCounters['DA']++;
+                } else if (judge.role === 'DB') {
+                    rolBackend = roleCounters['DB'] === 1 ? 'DB' : 'DB2';
+                    roleCounters['DB']++;
+                } else if (judge.role === 'E' || judge.role === 'A') {
                     rolBackend = `${judge.role}${roleCounters[judge.role]++}`;
                 }
 
@@ -160,7 +196,7 @@ export class SetupComponent {
 
             // 4. Save championship info to local service
             const processedJudges: Judge[] = [];
-            const roleCounters2: { [key: string]: number } = { E: 1, A: 1 };
+            const roleCounters2: { [key: string]: number } = { E: 1, A: 1, DA: 1, DB: 1 };
 
             judgesData.forEach(j => {
                 const judge: Judge = {
@@ -170,6 +206,12 @@ export class SetupComponent {
 
                 if (j.role === 'E' || j.role === 'A') {
                     judge.index = roleCounters2[j.role]++;
+                } else if (j.role === 'DA') {
+                    if (roleCounters2['DA'] > 1) judge.role = 'DA2';
+                    roleCounters2['DA']++;
+                } else if (j.role === 'DB') {
+                    if (roleCounters2['DB'] > 1) judge.role = 'DB2';
+                    roleCounters2['DB']++;
                 }
 
                 processedJudges.push(judge);

@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import Swal from 'sweetalert2';
 
 import { ChampionshipService } from '../../core/services/championship.service';
 import { ScoringService } from '../../core/services/scoring.service';
@@ -127,6 +128,7 @@ export class ScoringComponent implements OnInit {
         }
 
         return {
+            rut: bg.rut || '',
             name: bg.nombre || '',
             club: bg.club || '',
             scores: scores,
@@ -166,11 +168,22 @@ export class ScoringComponent implements OnInit {
     deleteGymnast(index: number): void {
         if (!this.currentCategory) return;
 
-        if (confirm('¿Está seguro de eliminar esta gimnasta?')) {
-            this.currentCategory.gymnasts.splice(index, 1);
-            // Update order
-            this.currentCategory.gymnasts.forEach((g, i) => g.order = i);
-        }
+        Swal.fire({
+            title: 'Eliminar Gimnasta',
+            text: '¿Está seguro de eliminar esta gimnasta?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                this.currentCategory!.gymnasts.splice(index, 1);
+                // Update order
+                this.currentCategory!.gymnasts.forEach((g, i) => g.order = i);
+            }
+        });
     }
 
     drop(event: CdkDragDrop<Gymnast[]>): void {
@@ -224,6 +237,7 @@ export class ScoringComponent implements OnInit {
             for (let i = 0; i < aScores.length; i++) if (aScores[i] === undefined) aScores[i] = 0;
 
             return {
+                rut: g.rut || '',
                 nombre: g.name,
                 club: g.club,
                 DA: g.scores['DA'] || 0,
@@ -247,7 +261,9 @@ export class ScoringComponent implements OnInit {
                 // Update local totals with server calculation if provided
                 if (response.gimnastas) {
                     response.gimnastas.forEach((bg: any) => {
-                        const localGymnast = this.currentCategory!.gymnasts.find(g => g.name === bg.nombre);
+                        const localGymnast = this.currentCategory!.gymnasts.find(
+                            g => (bg.rut && g.rut === bg.rut) || g.name === bg.nombre
+                        );
                         if (localGymnast && bg.puntajeTotal !== undefined) {
                             localGymnast.totalScore = bg.puntajeTotal;
                         }
@@ -263,5 +279,22 @@ export class ScoringComponent implements OnInit {
 
     goToExport(): void {
         this.router.navigate(['/export']);
+    }
+
+    goHome(): void {
+        Swal.fire({
+            title: '¿Volver al Menú Principal?',
+            text: '¿Está seguro que desea volver al menú principal? Se perderán los datos que no hayan sido guardados.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sí, volver',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                this.router.navigate(['/']);
+            }
+        });
     }
 }

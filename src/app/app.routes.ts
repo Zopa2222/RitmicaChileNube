@@ -4,6 +4,7 @@ import { ChampionshipsListComponent } from './features/championships-list/champi
 import { SetupComponent } from './features/setup/setup.component';
 import { ScoringComponent } from './features/scoring/scoring.component';
 import { ExportComponent } from './features/export/export.component';
+import { FinalistsComponent } from './features/finalists/finalists.component';
 
 export const routes: Routes = [
     { path: '', component: LandingComponent },
@@ -11,5 +12,6 @@ export const routes: Routes = [
     { path: 'setup', component: SetupComponent },
     { path: 'scoring', component: ScoringComponent },
     { path: 'export', component: ExportComponent },
+    { path: 'finalistas', component: FinalistsComponent },
     { path: '**', redirectTo: '/' }
 ];

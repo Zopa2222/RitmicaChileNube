@@ -1,4 +1,9 @@
 <div class="export-container">
+    <!-- Institution Header -->
+    <div class="export-top-bar">
+        <img src="assets/logo.jpeg" alt="Ritmica Chile Logo" class="export-top-logo">
+        <span class="export-institution-name">Ritmica Chile</span>
+    </div>
     <mat-card class="export-card">
         <mat-card-header>
             <mat-card-title>Exportar Resultados</mat-card-title>
@@ -69,14 +74,22 @@
         </mat-card-content>
 
         <mat-card-actions class="card-actions">
-            <button mat-raised-button (click)="goBack()">
-                <mat-icon>arrow_back</mat-icon>
-                Volver
+            <!-- Back to Menu Button -->
+            <button mat-button (click)="goHome()" color="warn">
+                <mat-icon>home</mat-icon>
+                Menú Principal
             </button>
-            <button mat-raised-button color="primary" (click)="exportToExcel()">
-                <mat-icon>file_download</mat-icon>
-                Exportar a Excel
-            </button>
+            <span class="spacer" style="flex: 1 1 auto;"></span>
+            <div class="export-actions" style="display: flex; gap: 10px;">
+                <button mat-raised-button color="accent" (click)="exportToPdf()">
+                    <mat-icon>picture_as_pdf</mat-icon>
+                    Descargar PDF
+                </button>
+                <button mat-raised-button color="primary" (click)="exportToExcel()">
+                    <mat-icon>file_download</mat-icon>
+                    Exportar a Excel
+                </button>
+            </div>
         </mat-card-actions>
     </mat-card>
 </div>

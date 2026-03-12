@@ -1,9 +1,14 @@
 <div class="championships-container">
     <div class="header">
-        <h1>
-            <mat-icon>emoji_events</mat-icon>
-            Campeonatos Existentes
-        </h1>
+        <div class="header-left">
+            <img src="assets/logo.jpeg" alt="Ritmica Chile" class="header-logo">
+            <div>
+                <span class="header-institution">Ritmica Chile</span>
+                <h1>
+                    Campeonatos Existentes
+                </h1>
+            </div>
+        </div>
         <button mat-icon-button color="primary" (click)="goHome()" matTooltip="Volver al inicio">
             <mat-icon>home</mat-icon>
         </button>
@@ -65,6 +70,10 @@
                 <button mat-raised-button color="primary" (click)="downloadExcel(championship)">
                     <mat-icon>download</mat-icon>
                     Descargar Excel
+                </button>
+                <button mat-raised-button color="accent" (click)="downloadPdf(championship)">
+                    <mat-icon>picture_as_pdf</mat-icon>
+                    Descargar PDF
                 </button>
             </mat-card-actions>
         </mat-card>

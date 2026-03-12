@@ -11,6 +11,7 @@ import { ExcelService } from '../../core/services/excel.service';
 import { ApiService } from '../../core/services/api.service';
 import { Championship } from '../../core/models/championship.model';
 import { Category } from '../../core/models/category.model';
+import Swal from 'sweetalert2';
 
 @Component({
     selector: 'app-export',
@@ -83,7 +84,6 @@ export class ExportComponent implements OnInit {
     exportToExcel(): void {
         if (!this.championship) return;
 
-        // Use backend export (which has all data)
         this.apiService.exportChampionship(this.championship.id!).subscribe({
             next: (blob) => {
                 const url = window.URL.createObjectURL(blob);
@@ -94,13 +94,44 @@ export class ExportComponent implements OnInit {
                 window.URL.revokeObjectURL(url);
             },
             error: (err) => {
-                console.error('Error exporting:', err);
+                console.error('Error exporting Excel:', err);
             }
         });
     }
 
-    goBack(): void {
-        this.router.navigate(['/scoring']);
+    exportToPdf(): void {
+        if (!this.championship) return;
+
+        this.apiService.exportChampionshipPdf(this.championship.id!).subscribe({
+            next: (blob) => {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${this.championship!.name}_resultados.pdf`;
+                link.click();
+                window.URL.revokeObjectURL(url);
+            },
+            error: (err) => {
+                console.error('Error exporting PDF:', err);
+            }
+        });
+    }
+
+    goHome(): void {
+        Swal.fire({
+            title: '¿Volver al Menú Principal?',
+            text: 'Se perderán los datos que no hayan sido guardados.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sí, volver',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                this.router.navigate(['/']);
+            }
+        });
     }
 
     viewCategory(category: Category): void {

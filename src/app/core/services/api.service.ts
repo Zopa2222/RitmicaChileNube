@@ -81,4 +81,42 @@ export class ApiService {
             responseType: 'blob'
         });
     }
+
+    /**
+     * Export championship to PDF (non-editable, top-8 highlighted)
+     * GET /campeonatos/{id}/export/pdf
+     */
+    exportChampionshipPdf(championshipId: string): Observable<Blob> {
+        return this.http.get(`${this.API_URL}/campeonatos/${championshipId}/export/pdf`, {
+            responseType: 'blob'
+        });
+    }
+
+    /**
+     * Get top-8 finalists per category for a zone
+     * GET /finalistas/{zona}
+     */
+    getFinalists(zona: string, anio: number | string): Observable<any> {
+        return this.http.get<any>(`${this.API_URL}/finalistas/${zona}?anio=${anio}`);
+    }
+
+    /**
+     * Export finalists as PDF for a zone
+     * GET /finalistas/{zona}/export/pdf
+     */
+    exportFinalistsPdf(zona: string, anio: number | string): Observable<Blob> {
+        return this.http.get(`${this.API_URL}/finalistas/${zona}/export/pdf?anio=${anio}`, {
+            responseType: 'blob'
+        });
+    }
+
+    /**
+     * Export finalists as editable Excel for a zone
+     * GET /finalistas/{zona}/export/excel
+     */
+    exportFinalistsExcel(zona: string, anio: number | string): Observable<Blob> {
+        return this.http.get(`${this.API_URL}/finalistas/${zona}/export/excel?anio=${anio}`, {
+            responseType: 'blob'
+        });
+    }
 }

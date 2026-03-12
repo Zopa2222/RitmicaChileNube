@@ -1,5 +1,5 @@
 // Judge role types
-export type JudgeRole = 'DA' | 'DB' | 'E' | 'A' | 'L';
+export type JudgeRole = 'DA' | 'DA2' | 'DB' | 'DB2' | 'E' | 'A' | 'L';
 
 // Judge interface
 export interface Judge {

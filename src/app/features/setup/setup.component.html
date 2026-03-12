@@ -1,4 +1,9 @@
 <div class="setup-container">
+  <!-- Institution Header -->
+  <div class="institution-top-bar">
+    <img src="assets/logo.jpeg" alt="Ritmica Chile Logo" class="top-logo">
+    <span class="top-institution-name">Ritmica Chile</span>
+  </div>
   <mat-card class="setup-card">
     <mat-card-header>
       <mat-card-title>Configuración del Campeonato</mat-card-title>
@@ -8,10 +13,13 @@
     <mat-card-content>
       <form [formGroup]="setupForm" (ngSubmit)="onSubmit()">
         <!-- Championship Name -->
-        <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="full-width" floatLabel="always">
           <mat-label>Nombre del Campeonato</mat-label>
-          <input matInput formControlName="championshipName" placeholder="Ej: Campeonato Nacional 2024">
-          <mat-icon matSuffix>event</mat-icon>
+          <mat-select formControlName="championshipName">
+            <mat-option *ngFor="let etapa of etapasCampeonato" [value]="etapa">
+              {{ etapa }}
+            </mat-option>
+          </mat-select>
         </mat-form-field>
 
         <!-- Excel File Upload -->
@@ -51,8 +59,8 @@
                 </mat-select>
               </mat-form-field>
 
-              <button mat-icon-button color="warn" type="button" (click)="removeJudge(i)" 
-                      [disabled]="judges.length === 1">
+              <button mat-icon-button color="warn" type="button" (click)="removeJudge(i)"
+                [disabled]="judges.length === 1">
                 <mat-icon>delete</mat-icon>
               </button>
             </div>
@@ -61,8 +69,8 @@
           <div class="judge-rules">
             <p><strong>Reglas de Jueces:</strong></p>
             <ul>
-              <li>DA: exactamente 1</li>
-              <li>DB: exactamente 1</li>
+              <li>DA: 1 o 2 jueces (1 nota)</li>
+              <li>DB: 1 o 2 jueces (1 nota)</li>
               <li>E: entre 1 y 4</li>
               <li>A: entre 1 y 4</li>
               <li>L: 0 o 1 (opcional)</li>
@@ -77,7 +85,11 @@
         </div>
 
         <!-- Submit Button -->
-        <div class="actions">
+        <div class="actions" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <button mat-stroked-button color="warn" type="button" (click)="goHome()">
+            <mat-icon>home</mat-icon>
+            Menú Principal
+          </button>
           <button mat-raised-button color="primary" type="submit" [disabled]="loading">
             <mat-icon *ngIf="!loading">start</mat-icon>
             <span *ngIf="loading">Procesando...</span>

@@ -3,6 +3,10 @@
     <mat-sidenav-container class="sidenav-container">
         <mat-sidenav mode="side" opened class="category-sidebar">
             <div class="sidebar-header">
+                <div class="sidebar-institution">
+                    <img src="assets/logo.jpeg" alt="Ritmica Chile" class="sidebar-logo">
+                    <span class="sidebar-institution-name">Ritmica Chile</span>
+                </div>
                 <h2>Categorías</h2>
                 <p *ngIf="championship">{{ championship.name }}</p>
             </div>
@@ -11,11 +15,15 @@
                 <mat-list-item *ngFor="let category of championship?.categories" (click)="selectCategory(category)"
                     [class.active]="currentCategory?.name === category.name">
                     <span matListItemTitle>{{ category.name }}</span>
-                    <span matListItemLine>{{ category.gymnasts.length }} gimnastas</span>
                 </mat-list-item>
             </mat-nav-list>
 
             <div class="sidebar-footer">
+                <button mat-stroked-button color="warn" (click)="goHome()" class="full-width home-btn"
+                    style="margin-bottom: 15px;">
+                    <mat-icon>home</mat-icon>
+                    Menú Principal
+                </button>
                 <button mat-raised-button color="accent" (click)="goToExport()" class="full-width">
                     <mat-icon>file_download</mat-icon>
                     Exportar Resultados

@@ -18,20 +18,23 @@ export class ScoringService {
     calculateTotalScore(gymnast: Gymnast, judges: Judge[]): number {
         let total = 0;
 
-        // Add DA and DB scores directly
-        const daScore = gymnast.scores['DA'] || 0;
+        // DB score
         const dbScore = gymnast.scores['DB'] || 0;
-        total += daScore + dbScore;
+        total += dbScore;
 
-        // Calculate E score
-        const eJudges = judges.filter(j => j.role === 'E');
-        const eScore = this.calculateAreaScore(gymnast, eJudges, 'E');
-        total += eScore;
+        // DA score
+        const daScore = gymnast.scores['DA'] || 0;
+        total += daScore;
 
         // Calculate A score
         const aJudges = judges.filter(j => j.role === 'A');
         const aScore = this.calculateAreaScore(gymnast, aJudges, 'A');
         total += aScore;
+
+        // Calculate E score
+        const eJudges = judges.filter(j => j.role === 'E');
+        const eScore = this.calculateAreaScore(gymnast, eJudges, 'E');
+        total += eScore;
 
         // Subtract Desc
         total -= (gymnast.desc || 0);
@@ -136,17 +139,18 @@ export class ScoringService {
     getScoreColumns(judges: Judge[]): string[] {
         const columns: string[] = [];
 
-        // Add DA and DB
-        if (judges.some(j => j.role === 'DA')) columns.push('DA');
-        if (judges.some(j => j.role === 'DB')) columns.push('DB');
-
-        // Add E judges
-        const eJudges = judges.filter(j => j.role === 'E').sort((a, b) => (a.index || 0) - (b.index || 0));
-        eJudges.forEach(j => columns.push(getJudgeDisplayName(j)));
+        // Order: DB, DA, A judges, E judges
+        // DA2/DB2 are secondary judges but share the same score column (DA/DB)
+        if (judges.some(j => j.role === 'DB' || j.role === 'DB2')) columns.push('DB');
+        if (judges.some(j => j.role === 'DA' || j.role === 'DA2')) columns.push('DA');
 
         // Add A judges
         const aJudges = judges.filter(j => j.role === 'A').sort((a, b) => (a.index || 0) - (b.index || 0));
         aJudges.forEach(j => columns.push(getJudgeDisplayName(j)));
+
+        // Add E judges
+        const eJudges = judges.filter(j => j.role === 'E').sort((a, b) => (a.index || 0) - (b.index || 0));
+        eJudges.forEach(j => columns.push(getJudgeDisplayName(j)));
 
         // Add L if exists
         if (judges.some(j => j.role === 'L')) columns.push('L');

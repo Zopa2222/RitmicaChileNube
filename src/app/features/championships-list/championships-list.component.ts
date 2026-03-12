@@ -101,6 +101,24 @@ export class ChampionshipsListComponent implements OnInit {
     });
   }
 
+  downloadPdf(championship: ChampionshipItem): void {
+    this.apiService.exportChampionshipPdf(championship.id).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${championship.nombre}_resultados.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        this.snackBar.open('Descarga de PDF iniciada', 'OK', { duration: 2000 });
+      },
+      error: (err) => {
+        console.error('Error downloading PDF:', err);
+        this.snackBar.open('Error al descargar PDF', 'Cerrar', { duration: 3000 });
+      }
+    });
+  }
+
   goHome(): void {
     this.router.navigate(['/']);
   }

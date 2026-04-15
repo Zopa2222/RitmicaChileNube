@@ -41,19 +41,7 @@ export class SetupComponent {
     loading: boolean = false;
     error: string = '';
 
-    judgeRoles: JudgeRole[] = ['DA', 'DB', 'E', 'A', 'L'];
-
-    readonly currentYear = new Date().getFullYear();
-
-    etapasCampeonato: string[] = [
-        `1er Control Zona Norte ${this.currentYear}`,
-        `2do Control Zona Norte ${this.currentYear}`,
-        `1er Control Zona Centro ${this.currentYear}`,
-        `2do Control Zona Centro ${this.currentYear}`,
-        `1er Control Zona Sur ${this.currentYear}`,
-        `2do Control Zona Sur ${this.currentYear}`,
-        `Final Nacional ${this.currentYear}`
-    ];
+    judgeRoles: JudgeRole[] = ['DB', 'DA', 'A', 'E', 'L'];
 
     constructor(
         private fb: FormBuilder,

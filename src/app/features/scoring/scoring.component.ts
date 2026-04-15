@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -36,11 +36,17 @@ import { Judge } from '../../core/models/judge.model';
     templateUrl: './scoring.component.html',
     styleUrls: ['./scoring.component.scss']
 })
-export class ScoringComponent implements OnInit {
+export class ScoringComponent implements OnInit, OnDestroy {
     championship: Championship | null = null;
     currentCategory: Category | null = null;
     judges: Judge[] = [];
     scoreColumns: string[] = [];
+
+    // Auto-save state
+    private autoSaveTimer: any = null;
+    private readonly AUTO_SAVE_DELAY = 30_000; // 30 seconds
+    hasUnsavedChanges = false;
+    saving = false;
 
     constructor(
         private championshipService: ChampionshipService,
@@ -72,9 +78,14 @@ export class ScoringComponent implements OnInit {
                     gymnasts: []
                 }));
 
-                // Load first category by default
-                if (this.championship!.categories.length > 0) {
-                    this.selectCategory(this.championship!.categories[0]);
+                // Check if a category was pre-selected (e.g. from export view)
+                const preSelected = this.championshipService.getCurrentCategory();
+                const targetCategory = this.championship!.categories.find(
+                    c => c.name === preSelected?.name
+                ) || this.championship!.categories[0];
+
+                if (targetCategory) {
+                    this.selectCategory(targetCategory);
                 }
             },
             error: (err) => {
@@ -84,8 +95,21 @@ export class ScoringComponent implements OnInit {
         });
     }
 
+    ngOnDestroy(): void {
+        // Save pending changes before leaving
+        if (this.hasUnsavedChanges) {
+            this.performSave(true);
+        }
+        this.clearAutoSaveTimer();
+    }
+
     selectCategory(category: Category): void {
         if (!this.championship) return;
+
+        // Auto-save current category before switching
+        if (this.hasUnsavedChanges && this.currentCategory) {
+            this.performSave(true);
+        }
 
         this.currentCategory = { ...category };
 
@@ -128,7 +152,6 @@ export class ScoringComponent implements OnInit {
         }
 
         return {
-            rut: bg.rut || '',
             name: bg.nombre || '',
             club: bg.club || '',
             scores: scores,
@@ -142,11 +165,13 @@ export class ScoringComponent implements OnInit {
         const numValue = parseFloat(value) || 0;
         gymnast.scores[column] = numValue;
         this.updateGymnastScore(gymnast);
+        this.markDirty();
     }
 
     onDescChange(gymnast: Gymnast, value: string): void {
         gymnast.desc = parseFloat(value) || 0;
         this.updateGymnastScore(gymnast);
+        this.markDirty();
     }
 
     updateGymnastScore(gymnast: Gymnast): void {
@@ -163,6 +188,7 @@ export class ScoringComponent implements OnInit {
 
         const newGymnast = createEmptyGymnast(this.currentCategory.gymnasts.length);
         this.currentCategory.gymnasts.push(newGymnast);
+        this.markDirty();
     }
 
     deleteGymnast(index: number): void {
@@ -180,8 +206,8 @@ export class ScoringComponent implements OnInit {
         }).then((result) => {
             if (result.isConfirmed) {
                 this.currentCategory!.gymnasts.splice(index, 1);
-                // Update order
                 this.currentCategory!.gymnasts.forEach((g, i) => g.order = i);
+                this.markDirty();
             }
         });
     }
@@ -195,8 +221,8 @@ export class ScoringComponent implements OnInit {
             event.currentIndex
         );
 
-        // Update order
         this.currentCategory.gymnasts.forEach((g, i) => g.order = i);
+        this.markDirty();
     }
 
     sortByScore(): void {
@@ -204,19 +230,55 @@ export class ScoringComponent implements OnInit {
 
         this.currentCategory.gymnasts.sort((a, b) => b.totalScore - a.totalScore);
         this.currentCategory.gymnasts.forEach((g, i) => g.order = i);
+        this.markDirty();
 
         this.snackBar.open('Gimnastas ordenadas por puntaje', 'OK', { duration: 2000 });
     }
 
+    // --- Auto-save helpers ---
+
+    markDirty(): void {
+        this.hasUnsavedChanges = true;
+        this.resetAutoSaveTimer();
+    }
+
+    private resetAutoSaveTimer(): void {
+        this.clearAutoSaveTimer();
+        this.autoSaveTimer = setTimeout(() => {
+            if (this.hasUnsavedChanges) {
+                this.performSave(true);
+            }
+        }, this.AUTO_SAVE_DELAY);
+    }
+
+    private clearAutoSaveTimer(): void {
+        if (this.autoSaveTimer) {
+            clearTimeout(this.autoSaveTimer);
+            this.autoSaveTimer = null;
+        }
+    }
+
+    /** Manual save triggered by button */
     saveCategory(): void {
+        this.performSave(false);
+    }
+
+    /**
+     * Perform the actual save.
+     * @param silent  If true, show a subtle auto-save message instead of the full snackbar.
+     */
+    private performSave(silent: boolean): void {
         if (!this.currentCategory || !this.championship) return;
+        if (this.saving) return; // prevent concurrent saves
+
+        this.saving = true;
+        this.clearAutoSaveTimer();
 
         // Map frontend data to backend format
         const gimnastasPayload = this.currentCategory.gymnasts.map(g => {
             const eScores: number[] = [];
             const aScores: number[] = [];
 
-            // Extract E scores
             Object.keys(g.scores).forEach(key => {
                 if (key.startsWith('E')) {
                     const idx = parseInt(key.substring(1)) - 1;
@@ -224,7 +286,6 @@ export class ScoringComponent implements OnInit {
                 }
             });
 
-            // Extract A scores
             Object.keys(g.scores).forEach(key => {
                 if (key.startsWith('A')) {
                     const idx = parseInt(key.substring(1)) - 1;
@@ -232,12 +293,10 @@ export class ScoringComponent implements OnInit {
                 }
             });
 
-            // Fill holes with 0 if necessary
             for (let i = 0; i < eScores.length; i++) if (eScores[i] === undefined) eScores[i] = 0;
             for (let i = 0; i < aScores.length; i++) if (aScores[i] === undefined) aScores[i] = 0;
 
             return {
-                rut: g.rut || '',
                 nombre: g.name,
                 club: g.club,
                 DA: g.scores['DA'] || 0,
@@ -245,7 +304,7 @@ export class ScoringComponent implements OnInit {
                 E: eScores,
                 A: aScores,
                 Desc: g.desc || 0,
-                puntajeFrontend: g.totalScore, // Send frontend calc for reference
+                puntajeFrontend: g.totalScore,
                 order: g.order
             };
         });
@@ -256,13 +315,20 @@ export class ScoringComponent implements OnInit {
             gimnastasPayload
         ).subscribe({
             next: (response) => {
-                this.snackBar.open('Categoría guardada exitosamente', 'OK', { duration: 3000 });
+                this.hasUnsavedChanges = false;
+                this.saving = false;
+
+                if (silent) {
+                    this.snackBar.open('✓ Guardado automático', '', { duration: 1500 });
+                } else {
+                    this.snackBar.open('Categoría guardada exitosamente', 'OK', { duration: 3000 });
+                }
 
                 // Update local totals with server calculation if provided
                 if (response.gimnastas) {
                     response.gimnastas.forEach((bg: any) => {
                         const localGymnast = this.currentCategory!.gymnasts.find(
-                            g => (bg.rut && g.rut === bg.rut) || g.name === bg.nombre
+                            g => g.name === bg.nombre
                         );
                         if (localGymnast && bg.puntajeTotal !== undefined) {
                             localGymnast.totalScore = bg.puntajeTotal;
@@ -272,6 +338,7 @@ export class ScoringComponent implements OnInit {
             },
             error: (err) => {
                 console.error('Error saving category:', err);
+                this.saving = false;
                 this.snackBar.open('Error al guardar categoría', 'Cerrar', { duration: 3000 });
             }
         });
@@ -283,13 +350,13 @@ export class ScoringComponent implements OnInit {
 
     goHome(): void {
         Swal.fire({
-            title: '¿Volver al Menú Principal?',
-            text: '¿Está seguro que desea volver al menú principal? Se perderán los datos que no hayan sido guardados.',
+            title: '¿Terminar campeonato?',
+            text: '¿Está seguro que desea salir? Se perderán los datos que no hayan sido guardados.',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
             cancelButtonColor: '#64748b',
-            confirmButtonText: 'Sí, volver',
+            confirmButtonText: 'Sí, terminar',
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {

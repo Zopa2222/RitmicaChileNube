@@ -13,9 +13,9 @@ def parse_excel_file(file_stream):
     """
     Parse Excel file and extract categories with gymnasts.
 
-    Column layout (per side):
-        col[0]=RUT_A, col[1]=NOMBRE_A, col[2]=CLUB_A, col[3]=CAT_A
-        col[4]=RUT_B, col[5]=NOMBRE_B, col[6]=CLUB_B, col[7]=CAT_B
+    Handles multiple sections within the same sheet (individuales, duos, trios,
+    conjuntos) separated by blank rows or sub-headers.  Column positions are
+    detected dynamically from each header row containing NOMBRE + CATEGORIA.
 
     Args:
         file_stream: file object or BytesIO
@@ -33,88 +33,102 @@ def parse_excel_file(file_stream):
             worksheet = workbook[sheet_name]
             print(f"DEBUG: Processing sheet {sheet_name}")
 
-            # Find header row (contains "NOMBRE")
-            header_row = None
-            for row_idx, row in enumerate(worksheet.iter_rows(min_row=1, max_row=20, values_only=True), 1):
-                row_values = [str(cell).upper() if cell is not None else '' for cell in row]
-                if 'NOMBRE' in row_values:
-                    if 'CATEGORIA' in row_values or 'CATEGORÍA' in row_values:
-                        header_row = row_idx
-                        print(f"DEBUG: Header found at row {header_row}")
-                        break
-
-            if not header_row:
-                print(f"WARN: No header 'NOMBRE' found in sheet {sheet_name}")
-                continue
-
-            max_row = worksheet.max_row
-            print(f"DEBUG: Reading rows from {header_row + 1} to {max_row}")
-
             processed_count = 0
             rows_read = 0
             skipped_footer = 0
 
-            for row in worksheet.iter_rows(min_row=header_row + 1, max_row=max_row, values_only=True):
+            # We'll detect column groups dynamically.
+            # A "group" is a set of (nombre_idx, club_idx, cat_idx) found
+            # in a header row.  There may be two groups (Banca A + Banca B)
+            # or just one.
+            column_groups = []  # list of (nombre_idx, club_idx, cat_idx)
+
+            max_row = worksheet.max_row
+            if max_row is None:
+                continue
+
+            for row_idx, row in enumerate(worksheet.iter_rows(min_row=1, max_row=max_row, values_only=True), 1):
                 rows_read += 1
 
                 if not row:
                     continue
 
-                if all(cell is None or str(cell).strip() == '' for cell in row):
+                row_list = list(row)
+                row_upper = [str(cell).upper().strip() if cell is not None else '' for cell in row_list]
+
+                # --- Check if this row is a header row ---
+                nombre_positions = [i for i, v in enumerate(row_upper) if v == 'NOMBRE']
+                cat_positions = [i for i, v in enumerate(row_upper) if v in ('CATEGORIA', 'CATEGORÍA', 'CATEGORY')]
+
+                if nombre_positions and cat_positions:
+                    # Detected a header row – rebuild column_groups
+                    column_groups = []
+                    club_positions = [i for i, v in enumerate(row_upper) if v == 'CLUB']
+
+                    for nombre_idx in nombre_positions:
+                        # Find the nearest CATEGORIA column to the right of NOMBRE
+                        cat_candidates = [c for c in cat_positions if c > nombre_idx]
+                        if not cat_candidates:
+                            continue
+                        cat_idx = min(cat_candidates)
+
+                        # Find the nearest CLUB column between NOMBRE and CATEGORIA
+                        club_candidates = [c for c in club_positions if nombre_idx < c < cat_idx]
+                        club_idx = min(club_candidates) if club_candidates else None
+
+                        column_groups.append((nombre_idx, club_idx, cat_idx))
+
+                    print(f"DEBUG: Header detected at row {row_idx} with {len(column_groups)} group(s): {column_groups}")
+                    continue  # Don't parse the header row as data
+
+                # --- Skip if we haven't found any header yet ---
+                if not column_groups:
                     continue
 
-                # Pad to at least 10 columns.
-                # Actual Excel layout per side:
-                #   col[0]=Pos, col[1]=RUT_A, col[2]=NOMBRE_A, col[3]=CLUB_A, col[4]=CAT_A
-                #   col[5]=Pos, col[6]=RUT_B, col[7]=NOMBRE_B, col[8]=CLUB_B, col[9]=CAT_B
-                padded_row = list(row) + [None] * max(0, 10 - len(row))
+                # --- Skip fully blank rows ---
+                if all(cell is None or str(cell).strip() == '' for cell in row_list):
+                    continue
 
-                rut_a  = padded_row[1]
-                name_a = padded_row[2]
-                cat_a  = padded_row[4]
+                # --- Parse data from each column group ---
+                padded_row = row_list + [None] * max(0, max(g[2] for g in column_groups) + 1 - len(row_list))
 
                 is_footer_row = False
-                if name_a:
-                    name_upper = str(name_a).strip().upper()
-                    if any(keyword in name_upper for keyword in ['PREMIACION', 'HORARIO', 'INICIO', 'FIN', 'ENTREGA']):
+
+                for (nombre_idx, club_idx, cat_idx) in column_groups:
+                    name_val = padded_row[nombre_idx]
+                    club_val = padded_row[club_idx] if club_idx is not None else None
+                    cat_val  = padded_row[cat_idx]
+
+                    if not name_val or not cat_val:
+                        continue
+
+                    name_str = str(name_val).strip()
+                    cat_str  = str(cat_val).strip()
+
+                    if not name_str or not cat_str:
+                        continue
+
+                    # Skip header-like values
+                    if name_str.upper() in ('NOMBRE', 'NAME', 'N'):
+                        continue
+                    if cat_str.upper() in ('CATEGORIA', 'CATEGORÍA', 'CATEGORY'):
+                        continue
+
+                    # Skip footer rows
+                    if any(kw in name_str.upper() for kw in ['PREMIACION', 'HORARIO', 'INICIO', 'FIN', 'ENTREGA']):
                         is_footer_row = True
                         skipped_footer += 1
+                        continue
 
-                if not is_footer_row:
-                    if (name_a and cat_a and
-                        str(name_a).strip() and str(cat_a).strip() and
-                        str(name_a).strip().upper() not in ['NOMBRE', 'NAME'] and
-                            str(cat_a).strip().upper() not in ['CATEGORIA', 'CATEGORÍA', 'CATEGORY']):
-                        add_gymnast_to_category(categories, {
-                            'rut':       str(rut_a).strip() if rut_a else '',
-                            'nombre':    str(name_a).strip(),
-                            'club':      str(padded_row[3]).strip() if padded_row[3] else '',
-                            'categoria': str(cat_a).strip()
-                        })
-                        processed_count += 1
+                    if is_footer_row:
+                        continue
 
-                rut_b  = padded_row[6]
-                name_b = padded_row[7]
-                cat_b  = padded_row[9]
-
-                if name_b and not is_footer_row:
-                    name_b_upper = str(name_b).strip().upper()
-                    if any(keyword in name_b_upper for keyword in ['PREMIACION', 'HORARIO', 'INICIO', 'FIN', 'ENTREGA']):
-                        is_footer_row = True
-                        skipped_footer += 1
-
-                if not is_footer_row:
-                    if (name_b and cat_b and
-                        str(name_b).strip() and str(cat_b).strip() and
-                        str(name_b).strip().upper() not in ['NOMBRE', 'NAME'] and
-                            str(cat_b).strip().upper() not in ['CATEGORIA', 'CATEGORÍA', 'CATEGORY']):
-                        add_gymnast_to_category(categories, {
-                            'rut':       str(rut_b).strip() if rut_b else '',
-                            'nombre':    str(name_b).strip(),
-                            'club':      str(padded_row[8]).strip() if padded_row[8] else '',
-                            'categoria': str(cat_b).strip()
-                        })
-                        processed_count += 1
+                    add_gymnast_to_category(categories, {
+                        'nombre':    name_str,
+                        'club':      str(club_val).strip() if club_val else '',
+                        'categoria': cat_str
+                    })
+                    processed_count += 1
 
             print(f"DEBUG: Sheet {sheet_name}: Read {rows_read} rows, processed {processed_count} gymnasts, skipped {skipped_footer} footer rows")
 
@@ -142,7 +156,6 @@ def add_gymnast_to_category(categories, data):
         print(f"DEBUG: New category created: '{category_name}'")
 
     categories[category_name].append({
-        'rut':          data.get('rut', ''),
         'nombre':       data['nombre'],
         'club':         data['club'],
         'DA':           0.0,
@@ -232,7 +245,7 @@ def export_to_excel(championship_name, categories_data):
             score_columns = _get_score_columns(sorted_gymnasts[0])
 
         # Header row
-        headers = ['Pos.', 'RUT', 'Nombre', 'Club'] + score_columns + ['Total']
+        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Total']
         worksheet.append(headers)
 
         # Style header
@@ -247,7 +260,6 @@ def export_to_excel(championship_name, categories_data):
         for position, gymnast in enumerate(sorted_gymnasts, 1):
             row_data = [
                 position,
-                gymnast.get('rut', ''),
                 gymnast.get('nombre', ''),
                 gymnast.get('club', '')
             ]
@@ -343,13 +355,12 @@ def export_to_pdf(championship_name, categories_data):
             continue
 
         score_columns = _get_score_columns(sorted_gymnasts[0])
-        headers = ['Pos.', 'RUT', 'Nombre', 'Club'] + score_columns + ['Total']
+        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Total']
 
         table_data = [headers]
         for position, gymnast in enumerate(sorted_gymnasts, 1):
             row = [
                 str(position),
-                gymnast.get('rut', ''),
                 gymnast.get('nombre', ''),
                 gymnast.get('club', '')
             ]
@@ -361,7 +372,7 @@ def export_to_pdf(championship_name, categories_data):
 
         # Column widths
         num_cols = len(headers)
-        col_widths = [1.2*cm, 2.8*cm, 5*cm, 4*cm] + [1.8*cm] * (num_cols - 5) + [2*cm]
+        col_widths = [1.2*cm, 5*cm, 4*cm] + [1.8*cm] * (num_cols - 4) + [2*cm]
 
         table = Table(table_data, colWidths=col_widths, repeatRows=1)
 

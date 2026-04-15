@@ -21,8 +21,4 @@ export class LandingComponent {
   viewChampionships(): void {
     this.router.navigate(['/championships']);
   }
-
-  viewFinalists(): void {
-    this.router.navigate(['/finalistas']);
-  }
 }

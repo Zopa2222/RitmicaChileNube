@@ -327,6 +327,16 @@ def update_category(campeonato, categoria):
         
         # Get judges to calculate scores
         judges = list(db.jueces.find({}, {'_id': 0}))
+
+        # Collect the names being sent from the frontend
+        incoming_names = [g['nombre'] for g in gimnastas if g.get('nombre')]
+
+        # Delete gymnasts that are no longer in the frontend list
+        if incoming_names:
+            db[collection_name].delete_many({'nombre': {'$nin': incoming_names}})
+        else:
+            # If no gymnasts sent, clear the collection
+            db[collection_name].delete_many({})
         
         # Process each gymnast
         response_gimnastas = []
@@ -335,8 +345,8 @@ def update_category(campeonato, categoria):
             puntaje_total = scoring_service.calculate_total_score(gymnast, judges)
             gymnast['puntajeTotal'] = puntaje_total
 
-            # Use RUT as unique key; fall back to nombre for legacy records
-            filter_key = {'rut': gymnast['rut']} if gymnast.get('rut') else {'nombre': gymnast['nombre']}
+            # Use nombre as unique key for the gymnast within the category
+            filter_key = {'nombre': gymnast['nombre']}
 
             # Update in database
             db[collection_name].update_one(
@@ -346,7 +356,6 @@ def update_category(campeonato, categoria):
             )
 
             response_gimnastas.append({
-                'rut': gymnast.get('rut', ''),
                 'nombre': gymnast['nombre'],
                 'puntajeTotal': puntaje_total
             })
@@ -457,234 +466,5 @@ def export_championship_pdf(campeonato):
 
     except Exception as e:
         print(f"Error exporting PDF: {str(e)}")
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-# ---------------------------------------------------------------------------
-# Zona keywords mapped to championship name fragments
-# ---------------------------------------------------------------------------
-ZONA_KEYWORDS = {
-    'norte':  'zona norte',
-    'centro': 'zona centro',
-    'sur':    'zona sur',
-}
-
-
-def _get_zona_championships(zona: str, anio: str = None):
-    """
-    Return championship databases whose nombre_campeonato contains
-    the zone keyword (case-insensitive) AND optionally the given year.
-    Sorted by created_at ascending so index 0 = 1st control, index 1 = 2nd control.
-    """
-    results, err = _get_zona_championships_with_meta(zona, anio)
-    if err:
-        return None, err
-    return [db for _, db in results], None
-
-
-def _get_zona_championships_with_meta(zona: str, anio: str = None):
-    """
-    Like _get_zona_championships but returns list of (nombre_campeonato, db) tuples,
-    so callers can record which championship each gymnast came from.
-    """
-    from app.utils.db import MongoDB
-    keyword = ZONA_KEYWORDS.get(zona.lower())
-    if not keyword:
-        return None, f"Zona '{zona}' no válida. Use: norte, centro, sur."
-
-    client = MongoDB.get_client()
-    matches = []
-    for db_name in client.list_database_names():
-        if not db_name.startswith('campeonato_'):
-            continue
-        db = MongoDB.get_database(db_name)
-        meta = db.metadata.find_one({}, {'_id': 0})
-        if not meta:
-            continue
-        nombre = meta.get('nombre_campeonato', '')
-        nombre_lower = nombre.lower()
-        if keyword not in nombre_lower:
-            continue
-        # If a year filter is given, also require it in the name
-        if anio and str(anio) not in nombre_lower:
-            continue
-        matches.append((meta.get('created_at'), nombre, db))
-
-    # Sort by created_at
-    matches.sort(key=lambda x: x[0] or '')
-    return [(m[1], m[2]) for m in matches], None
-
-
-def _calculate_zona_finalists(zona: str, anio: str = None):
-    """
-    Core logic: for each category present in any control of the zone
-    (and year, if specified), pick each gymnast's best puntajeTotal
-    (identified by RUT), then return top-8 sorted descending.
-
-    Returns: (results_dict, error_str)
-      results_dict = { category_name: [ enriched_gymnast_doc, ... ] }  (top-8, sorted)
-      Each doc has an extra 'controles' key: list of {campeonato, puntajeTotal}.
-    """
-    from app.utils.db import MongoDB
-    databases_with_meta, err = _get_zona_championships_with_meta(zona, anio)
-    if err:
-        return None, err
-    if not databases_with_meta:
-        year_hint = f" del año {anio}" if anio else ""
-        return None, f"No se encontraron campeonatos para la zona '{zona}'{year_hint}."
-
-    # Excluded collections
-    EXCLUDED = {'metadata', 'jueces'}
-
-    # all_by_cat[category][rut] = {'best': gymnast_doc, 'controles': [{campeonato, puntajeTotal}, ...]}
-    all_by_cat = {}
-
-    for camp_name, db in databases_with_meta:
-        all_cols = [c for c in db.list_collection_names() if c not in EXCLUDED]
-        for col_name in all_cols:
-            gymnasts = list(db[col_name].find({}, {'_id': 0}))
-            if col_name not in all_by_cat:
-                all_by_cat[col_name] = {}
-
-            for g in gymnasts:
-                rut = g.get('rut', '').strip()
-                if not rut:
-                    rut = f'__nombre__{g.get("nombre", "")}'
-                total = g.get('puntajeTotal', 0.0) or 0.0
-                control_entry = {'campeonato': camp_name, 'puntajeTotal': round(total, 3)}
-
-                if rut not in all_by_cat[col_name]:
-                    all_by_cat[col_name][rut] = {'best': g, 'controles': [control_entry]}
-                else:
-                    all_by_cat[col_name][rut]['controles'].append(control_entry)
-                    if total > (all_by_cat[col_name][rut]['best'].get('puntajeTotal', 0.0) or 0.0):
-                        all_by_cat[col_name][rut]['best'] = g
-
-    # Sort each category and take top-8
-    from app.services.scoring_service import calculate_e_score
-    results = {}
-    for cat_name, gymnasts_by_rut in all_by_cat.items():
-        all_gymnasts = []
-        for data in gymnasts_by_rut.values():
-            enriched = dict(data['best'])          # copy the best doc
-            enriched['controles'] = sorted(data['controles'], key=lambda c: c['campeonato'])
-            all_gymnasts.append(enriched)
-
-        sorted_gymnasts = sorted(
-            all_gymnasts,
-            key=lambda g: (g.get('puntajeTotal', 0), calculate_e_score(g)),
-            reverse=True
-        )
-        results[cat_name] = sorted_gymnasts[:8]
-
-    return results, None
-
-
-@bp.route('/finalistas/<zona>', methods=['GET'])
-def get_finalists(zona):
-    """Return top-8 finalists per category for a given zone.
-    Optional query param: anio (e.g. ?anio=2026). Defaults to current year.
-    """
-    try:
-        from datetime import datetime
-        anio = request.args.get('anio', str(datetime.utcnow().year))
-        results, err = _calculate_zona_finalists(zona, anio)
-        if err:
-            return jsonify({'error': err}), 400
-
-        # Serialize for JSON
-        output = []
-        for cat_name, gymnasts in results.items():
-            output.append({
-                'categoria': cat_name,
-                'finalistas': [
-                    {
-                        'rut':          g.get('rut', ''),
-                        'nombre':       g.get('nombre', ''),
-                        'club':         g.get('club', ''),
-                        'puntajeTotal': g.get('puntajeTotal', 0.0),
-                        'controles':    g.get('controles', [])
-                    }
-                    for g in gymnasts
-                ]
-            })
-
-        return jsonify({
-            'success': True,
-            'zona': zona,
-            'anio': anio,
-            'categorias': output
-        }), 200
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-@bp.route('/finalistas/<zona>/export/pdf', methods=['GET'])
-def export_finalists_pdf(zona):
-    """Export finalist results as PDF for a given zone.
-    Optional query param: anio (e.g. ?anio=2026). Defaults to current year.
-    """
-    try:
-        from datetime import datetime
-        anio = request.args.get('anio', str(datetime.utcnow().year))
-        results, err = _calculate_zona_finalists(zona, anio)
-        if err:
-            return jsonify({'error': err}), 400
-
-        zona_label = zona.replace('norte', 'Norte').replace('centro', 'Centro').replace('sur', 'Sur')
-        championship_name = f"Finalistas Zona {zona_label} {anio}"
-
-        categories_data = [
-            {'categoria': cat_name, 'gimnastas': gymnasts}
-            for cat_name, gymnasts in results.items()
-        ]
-
-        pdf_file = excel_service.export_to_pdf(championship_name, categories_data)
-
-        return send_file(
-            pdf_file,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f"{championship_name}.pdf"
-        )
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-@bp.route('/finalistas/<zona>/export/excel', methods=['GET'])
-def export_finalists_excel(zona):
-    """Export finalist results as editable Excel for a given zone.
-    Optional query param: anio (e.g. ?anio=2026). Defaults to current year.
-    """
-    try:
-        from datetime import datetime
-        anio = request.args.get('anio', str(datetime.utcnow().year))
-        results, err = _calculate_zona_finalists(zona, anio)
-        if err:
-            return jsonify({'error': err}), 400
-
-        zona_label = zona.replace('norte', 'Norte').replace('centro', 'Centro').replace('sur', 'Sur')
-        championship_name = f"Finalistas Zona {zona_label} {anio}"
-
-        categories_data = [
-            {'categoria': cat_name, 'gimnastas': gymnasts}
-            for cat_name, gymnasts in results.items()
-        ]
-
-        excel_file = excel_service.export_to_excel(championship_name, categories_data)
-
-        return send_file(
-            excel_file,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name=f"{championship_name}.xlsx"
-        )
-
-    except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

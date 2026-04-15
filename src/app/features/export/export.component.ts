@@ -119,13 +119,13 @@ export class ExportComponent implements OnInit {
 
     goHome(): void {
         Swal.fire({
-            title: '¿Volver al Menú Principal?',
-            text: 'Se perderán los datos que no hayan sido guardados.',
+            title: '¿Terminar campeonato?',
+            text: 'Volverás al menú principal. Asegúrate de haber exportado tus resultados.',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
             cancelButtonColor: '#64748b',
-            confirmButtonText: 'Sí, volver',
+            confirmButtonText: 'Sí, terminar',
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {

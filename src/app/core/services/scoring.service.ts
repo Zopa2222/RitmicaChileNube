@@ -113,6 +113,10 @@ export class ScoringService {
 
     /**
      * Check if difference between judges in same area exceeds 0.6
+     * Rules:
+     *   2 judges: error if difference > 0.6
+     *   3 judges: error if any consecutive pair (sorted) differs by > 0.6
+     *   4 judges: drop min and max, error if difference between the 2 middle > 0.6
      */
     private checkAreaDifference(gymnast: Gymnast, judges: Judge[]): boolean {
         const scores: number[] = [];
@@ -127,10 +131,29 @@ export class ScoringService {
 
         if (scores.length < 2) return false;
 
-        const min = Math.min(...scores);
-        const max = Math.max(...scores);
+        const sorted = [...scores].sort((a, b) => a - b);
 
-        return (max - min) > 0.6;
+        if (sorted.length === 2) {
+            // 2 judges: simple difference
+            return (sorted[1] - sorted[0]) > 0.6;
+        }
+
+        if (sorted.length === 3) {
+            // 3 judges: check consecutive pairs only
+            // e.g. [1, 1.6, 2.2] → 1→1.6 = 0.6 OK, 1.6→2.2 = 0.6 OK → valid
+            for (let i = 0; i < sorted.length - 1; i++) {
+                if ((sorted[i + 1] - sorted[i]) > 0.6) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 4+ judges: drop min and max, check difference of middle scores
+        const middle = sorted.slice(1, -1);
+        const middleMin = middle[0];
+        const middleMax = middle[middle.length - 1];
+        return (middleMax - middleMin) > 0.6;
     }
 
     /**

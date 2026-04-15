@@ -7,8 +7,13 @@
                     <img src="assets/logo.jpeg" alt="Ritmica Chile" class="sidebar-logo">
                     <span class="sidebar-institution-name">Ritmica Chile</span>
                 </div>
-                <h2>Categorías</h2>
-                <p *ngIf="championship">{{ championship.name }}</p>
+                <h2>{{ championship.name }}</h2>
+                <!-- Botón de terminar campeonato movido a la cabecera por seguridad -->
+                <button mat-stroked-button color="warn" (click)="goHome()" class="full-width finish-btn"
+                    style="margin-top: 15px;">
+                    <mat-icon>exit_to_app</mat-icon>
+                    Terminar campeonato
+                </button>
             </div>
 
             <mat-nav-list>
@@ -19,11 +24,6 @@
             </mat-nav-list>
 
             <div class="sidebar-footer">
-                <button mat-stroked-button color="warn" (click)="goHome()" class="full-width home-btn"
-                    style="margin-bottom: 15px;">
-                    <mat-icon>home</mat-icon>
-                    Menú Principal
-                </button>
                 <button mat-raised-button color="accent" (click)="goToExport()" class="full-width">
                     <mat-icon>file_download</mat-icon>
                     Exportar Resultados
@@ -77,12 +77,13 @@
                                 <!-- Name -->
                                 <td class="name-cell">
                                     <input type="text" [(ngModel)]="gymnast.name" placeholder="Nombre"
-                                        class="cell-input">
+                                        (ngModelChange)="markDirty()" class="cell-input">
                                 </td>
 
                                 <!-- Club -->
                                 <td class="club-cell">
-                                    <input type="text" [(ngModel)]="gymnast.club" placeholder="Club" class="cell-input">
+                                    <input type="text" [(ngModel)]="gymnast.club" placeholder="Club"
+                                        (ngModelChange)="markDirty()" class="cell-input">
                                 </td>
 
                                 <!-- Score columns -->

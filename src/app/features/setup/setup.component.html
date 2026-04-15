@@ -15,11 +15,7 @@
         <!-- Championship Name -->
         <mat-form-field appearance="outline" class="full-width" floatLabel="always">
           <mat-label>Nombre del Campeonato</mat-label>
-          <mat-select formControlName="championshipName">
-            <mat-option *ngFor="let etapa of etapasCampeonato" [value]="etapa">
-              {{ etapa }}
-            </mat-option>
-          </mat-select>
+          <input matInput formControlName="championshipName" placeholder="Ej: Copa Primavera 2026">
         </mat-form-field>
 
         <!-- Excel File Upload -->

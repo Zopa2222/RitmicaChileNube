@@ -71,15 +71,8 @@
 
 /* SEARCH */
 
-.search-card {
+.search-container {
     margin-bottom: 40px;
-    border-radius: 20px !important;
-    box-shadow: var(--shadow-sm) !important;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-
-    .mat-mdc-card-content {
-        padding: 18px 24px;
-    }
 }
 
 .search-field {
@@ -87,13 +80,30 @@
 
     mat-icon {
         color: var(--text-secondary);
+        margin-right: 8px;
     }
 }
 
-/* Bordes redondeados reales para Angular Material */
+/* Bordes redondeados reales para Angular Material y estilos custom */
+::ng-deep .search-field {
+    .mdc-notched-outline {
+        border-radius: 20px !important;
+        box-shadow: var(--shadow-sm);
+    }
 
-::ng-deep .search-field .mdc-notched-outline {
-    border-radius: 16px !important;
+    .mdc-notched-outline__leading,
+    .mdc-notched-outline__notch,
+    .mdc-notched-outline__trailing {
+        border-color: rgba(0, 0, 0, 0.08) !important;
+        transition: border-color 0.2s ease;
+    }
+
+    &.mat-focused .mdc-notched-outline__leading,
+    &.mat-focused .mdc-notched-outline__notch,
+    &.mat-focused .mdc-notched-outline__trailing {
+        border-color: #667eea !important;
+        border-width: 2px !important;
+    }
 }
 
 /* GRID */

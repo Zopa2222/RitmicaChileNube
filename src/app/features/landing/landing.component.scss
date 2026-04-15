@@ -222,19 +222,6 @@
     }
 }
 
-.finalists-card {
-    &::before {
-        background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-    }
-
-    &:hover .icon-wrapper {
-        background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-    }
-
-    &:hover .fake-button {
-        background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-    }
-}
 
 .card-content {
     h2 {

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,6 +12,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { ApiService } from '../../core/services/api.service';
+import { ChampionshipService } from '../../core/services/championship.service';
+import { Championship } from '../../core/models/championship.model';
+import { Judge, JudgeRole } from '../../core/models/judge.model';
 
 interface ChampionshipItem {
   id: string;
@@ -32,7 +36,8 @@ interface ChampionshipItem {
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatTooltipModule
   ],
   templateUrl: './championships-list.component.html',
   styleUrls: ['./championships-list.component.scss']
@@ -45,6 +50,7 @@ export class ChampionshipsListComponent implements OnInit {
 
   constructor(
     private apiService: ApiService,
+    private championshipService: ChampionshipService,
     private router: Router,
     private snackBar: MatSnackBar
   ) { }
@@ -117,6 +123,44 @@ export class ChampionshipsListComponent implements OnInit {
         this.snackBar.open('Error al descargar PDF', 'Cerrar', { duration: 3000 });
       }
     });
+  }
+
+  editChampionship(championship: ChampionshipItem): void {
+    // Map API jueces to Judge[] model
+    const judges: Judge[] = championship.jueces.map(j => {
+      const judge: Judge = { name: j.nombre, role: 'E' };
+
+      // Parse role string (e.g., 'DA', 'DA2', 'DB', 'DB2', 'E1', 'E2', 'A1', 'A2', 'L')
+      const rol = j.rol;
+      if (rol === 'DA' || rol === 'DA2') {
+        judge.role = rol as JudgeRole;
+      } else if (rol === 'DB' || rol === 'DB2') {
+        judge.role = rol as JudgeRole;
+      } else if (rol === 'L') {
+        judge.role = 'L';
+      } else if (rol.startsWith('E')) {
+        judge.role = 'E';
+        judge.index = parseInt(rol.substring(1)) || 1;
+      } else if (rol.startsWith('A')) {
+        judge.role = 'A';
+        judge.index = parseInt(rol.substring(1)) || 1;
+      }
+
+      return judge;
+    });
+
+    const champ: Championship = {
+      id: championship.id,
+      name: championship.nombre,
+      judges: judges,
+      categories: championship.categorias.map(catName => ({
+        name: catName,
+        gymnasts: []
+      }))
+    };
+
+    this.championshipService.setChampionship(champ);
+    this.router.navigate(['/scoring']);
   }
 
   goHome(): void {

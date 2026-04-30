@@ -172,6 +172,16 @@
             height: 22px;
             color: #a0aec0;
         }
+
+        &.summary-row {
+            justify-content: space-between;
+            
+            .info-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+        }
     }
 
     .judges-section {
@@ -236,10 +246,36 @@
     mat-card-actions {
         padding: 25px;
         border-top: 1px solid #f1f5f9;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
 
         button {
             width: 100%;
             height: 45px;
+        }
+
+        .edit-btn {
+            border-radius: var(--radius-full) !important;
+            width: 100%;
+            height: 38px;
+            font-size: 13px;
+            color: #94a3b8;
+            border-color: #e2e8f0;
+            transition: all 0.2s ease;
+
+            mat-icon {
+                font-size: 18px;
+                width: 18px;
+                height: 18px;
+                margin-right: 4px;
+            }
+
+            &:hover {
+                color: #667eea;
+                border-color: #667eea;
+                background: rgba(102, 126, 234, 0.04);
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import Swal from 'sweetalert2';
 
@@ -17,7 +18,7 @@ import { ApiService } from '../../core/services/api.service';
 import { Championship } from '../../core/models/championship.model';
 import { Category } from '../../core/models/category.model';
 import { Gymnast, createEmptyGymnast } from '../../core/models/gymnast.model';
-import { Judge } from '../../core/models/judge.model';
+import { Judge, BancaJudge, resolveJudgesForScoring } from '../../core/models/judge.model';
 
 @Component({
     selector: 'app-scoring',
@@ -31,6 +32,7 @@ import { Judge } from '../../core/models/judge.model';
         MatIconModule,
         MatTooltipModule,
         MatSnackBarModule,
+        MatButtonToggleModule,
         DragDropModule
     ],
     templateUrl: './scoring.component.html',
@@ -41,6 +43,11 @@ export class ScoringComponent implements OnInit, OnDestroy {
     currentCategory: Category | null = null;
     judges: Judge[] = [];
     scoreColumns: string[] = [];
+
+    // Banca/Jornada state
+    currentBanca: 'A' | 'B' = 'A';
+    currentJornada: 'AM' | 'PM' = 'AM';
+    categoriasBanca: { [catName: string]: 'A' | 'B' } = {};
 
     // Auto-save state
     private autoSaveTimer: any = null;
@@ -64,13 +71,19 @@ export class ScoringComponent implements OnInit, OnDestroy {
             return;
         }
 
-        this.judges = this.championship.judges;
-        this.scoreColumns = this.scoringService.getScoreColumns(this.judges);
+        // Load categorias_banca from championship if already present
+        this.categoriasBanca = this.championship.categoriasBanca || {};
 
         // Load categories from backend
         this.apiService.getCategories(this.championship.id).subscribe({
             next: (response) => {
                 console.log('Categories loaded from backend:', response.categorias);
+
+                // Update banca mapping from backend
+                if (response.categorias_banca) {
+                    this.categoriasBanca = response.categorias_banca;
+                    this.championship!.categoriasBanca = response.categorias_banca;
+                }
 
                 // Update championship with categories from backend
                 this.championship!.categories = response.categorias.map((catName: string) => ({
@@ -113,6 +126,12 @@ export class ScoringComponent implements OnInit, OnDestroy {
 
         this.currentCategory = { ...category };
 
+        // Auto-detect banca from categoriasBanca mapping
+        this.currentBanca = this.categoriasBanca[category.name] || 'A';
+
+        // Resolve active judges for current banca+jornada
+        this.refreshJudgesAndColumns();
+
         // Fetch gymnasts from API
         this.apiService.getCategory(this.championship.id!, category.name).subscribe({
             next: (data) => {
@@ -131,23 +150,42 @@ export class ScoringComponent implements OnInit, OnDestroy {
         });
     }
 
+    /** Resolve active judges from banca+jornada and rebuild score columns */
+    private refreshJudgesAndColumns(): void {
+        if (!this.championship) return;
+        const bancaJudges = this.currentBanca === 'A'
+            ? this.championship.bancaA
+            : this.championship.bancaB;
+        this.judges = resolveJudgesForScoring(bancaJudges || [], this.currentJornada);
+        this.scoreColumns = this.scoringService.getScoreColumns(this.judges);
+    }
+
+    /** Called when jornada toggle changes */
+    onJornadaChange(): void {
+        this.refreshJudgesAndColumns();
+        // Recalculate all gymnast totals with new judge configuration
+        if (this.currentCategory) {
+            this.currentCategory.gymnasts.forEach(g => this.updateGymnastScore(g));
+        }
+    }
+
     private mapBackendGymnastToFrontend(bg: any): Gymnast {
         const scores: { [key: string]: number } = {};
 
-        if (bg.DA) scores['DA'] = bg.DA;
-        if (bg.DB) scores['DB'] = bg.DB;
+        scores['DA'] = bg.DA ?? 0;
+        scores['DB'] = bg.DB ?? 0;
 
         // Map E scores array to E1, E2...
         if (Array.isArray(bg.E)) {
             bg.E.forEach((val: number, idx: number) => {
-                scores[`E${idx + 1}`] = val;
+                scores[`E${idx + 1}`] = val ?? 0;
             });
         }
 
         // Map A scores array to A1, A2...
         if (Array.isArray(bg.A)) {
             bg.A.forEach((val: number, idx: number) => {
-                scores[`A${idx + 1}`] = val;
+                scores[`A${idx + 1}`] = val ?? 0;
             });
         }
 
@@ -155,23 +193,72 @@ export class ScoringComponent implements OnInit, OnDestroy {
             name: bg.nombre || '',
             club: bg.club || '',
             scores: scores,
-            desc: bg.Desc || 0,
-            totalScore: bg.puntajeTotal || 0,
-            order: bg.order || 0
+            desc: bg.Desc ?? 0,
+            totalScore: bg.puntajeTotal ?? 0,
+            order: bg.order ?? 0
         };
     }
 
-    onScoreChange(gymnast: Gymnast, column: string, value: string): void {
-        const numValue = parseFloat(value) || 0;
-        gymnast.scores[column] = numValue;
-        this.updateGymnastScore(gymnast);
-        this.markDirty();
+    onScoreChange(gymnast: Gymnast, column: string, event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const raw = input.value.trim();
+        const numValue = raw === '' ? 0 : parseFloat(raw);
+        if (!isNaN(numValue)) {
+            gymnast.scores[column] = numValue;
+            this.updateGymnastScore(gymnast);
+            this.markDirty();
+        }
     }
 
-    onDescChange(gymnast: Gymnast, value: string): void {
-        gymnast.desc = parseFloat(value) || 0;
-        this.updateGymnastScore(gymnast);
-        this.markDirty();
+    onDescChange(gymnast: Gymnast, event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const raw = input.value.trim();
+        const numValue = raw === '' ? 0 : parseFloat(raw);
+        if (!isNaN(numValue)) {
+            gymnast.desc = numValue;
+            this.updateGymnastScore(gymnast);
+            this.markDirty();
+        }
+    }
+
+    /** Returns empty string for 0/undefined, otherwise the number */
+    getDisplayScore(value: number | undefined): string {
+        if (value === undefined || value === null || value === 0) return '';
+        return String(value);
+    }
+
+    /** Select all text when focusing a score input */
+    onScoreFocus(event: FocusEvent): void {
+        const input = event.target as HTMLInputElement;
+        setTimeout(() => input.select(), 0);
+    }
+
+    /** Move focus to the next score cell to the right on Enter */
+    moveFocus(event: Event, rowIdx: number, colIdx: number): void {
+        event.preventDefault();
+        const nextCol = colIdx + 1;
+        // Try same row, next column (including Desc which is at scoreColumns.length)
+        let next = document.querySelector<HTMLInputElement>(
+            `input.score-input[data-row="${rowIdx}"][data-col="${nextCol}"]`
+        );
+        if (!next) {
+            // Move to next row, first score column
+            next = document.querySelector<HTMLInputElement>(
+                `input.score-input[data-row="${rowIdx + 1}"][data-col="0"]`
+            );
+        }
+        if (next) next.focus();
+    }
+
+    /** Move focus from Desc to next row's first score column */
+    moveFocusToNext(event: Event): void {
+        event.preventDefault();
+        const input = event.target as HTMLInputElement;
+        const rowIdx = parseInt(input.getAttribute('data-row') || '0', 10);
+        const next = document.querySelector<HTMLInputElement>(
+            `input.score-input[data-row="${rowIdx + 1}"][data-col="0"]`
+        );
+        if (next) next.focus();
     }
 
     updateGymnastScore(gymnast: Gymnast): void {

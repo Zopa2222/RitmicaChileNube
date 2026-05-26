@@ -119,11 +119,19 @@
 .judges-section {
   margin-top: 40px;
 
+  .banca-block {
+    margin-bottom: 30px;
+    padding: 25px;
+    background: #f8fafc;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+  }
+
   .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
+    margin-bottom: 20px;
 
     h3 {
       font-size: 18px;
@@ -132,14 +140,41 @@
       margin: 0;
     }
   }
+
+  .banca-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .banca-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 16px;
+    color: white;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+
+    &.banca-a {
+      background: linear-gradient(135deg, #667eea, #4f46e5);
+    }
+
+    &.banca-b {
+      background: linear-gradient(135deg, #a855f7, #7c3aed);
+    }
+  }
 }
 
 .judge-row {
   display: flex;
-  gap: 20px;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 15px;
-  padding: 15px;
+  margin-bottom: 10px;
+  padding: 12px 15px;
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
@@ -157,6 +192,7 @@
 
   .judge-role {
     flex: 1;
+    min-width: 130px;
   }
 
   button {

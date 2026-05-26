@@ -14,13 +14,18 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { ChampionshipService } from '../../core/services/championship.service';
 import { Championship } from '../../core/models/championship.model';
-import { Judge, JudgeRole } from '../../core/models/judge.model';
 
 interface ChampionshipItem {
   id: string;
   nombre: string;
   categorias: string[];
-  jueces: Array<{ nombre: string, rol: string }>;
+  jueces: Array<{ 
+    nombre: string; 
+    rol?: string; 
+    banca?: 'A' | 'B'; 
+    rol_am?: string | null; 
+    rol_pm?: string | null; 
+  }>;
   created_at: string;
 }
 
@@ -126,33 +131,33 @@ export class ChampionshipsListComponent implements OnInit {
   }
 
   editChampionship(championship: ChampionshipItem): void {
-    // Map API jueces to Judge[] model
-    const judges: Judge[] = championship.jueces.map(j => {
-      const judge: Judge = { name: j.nombre, role: 'E' };
+    // Map API jueces to BancaJudge[] per banca
+    const bancaA: any[] = [];
+    const bancaB: any[] = [];
 
-      // Parse role string (e.g., 'DA', 'DA2', 'DB', 'DB2', 'E1', 'E2', 'A1', 'A2', 'L')
-      const rol = j.rol;
-      if (rol === 'DA' || rol === 'DA2') {
-        judge.role = rol as JudgeRole;
-      } else if (rol === 'DB' || rol === 'DB2') {
-        judge.role = rol as JudgeRole;
-      } else if (rol === 'L') {
-        judge.role = 'L';
-      } else if (rol.startsWith('E')) {
-        judge.role = 'E';
-        judge.index = parseInt(rol.substring(1)) || 1;
-      } else if (rol.startsWith('A')) {
-        judge.role = 'A';
-        judge.index = parseInt(rol.substring(1)) || 1;
+    for (const j of championship.jueces) {
+      const banca = (j as any).banca || 'A';
+      const bancaJudge = {
+        name: j.nombre,
+        roleAM: (j as any).rol_am || (j as any).rol || null,
+        rolePM: (j as any).rol_pm || (j as any).rol || null
+      };
+
+      if (banca === 'B') {
+        bancaB.push(bancaJudge);
+      } else {
+        bancaA.push(bancaJudge);
       }
+    }
 
-      return judge;
-    });
+    const categoriasBanca = (championship as any).categorias_banca || {};
 
     const champ: Championship = {
       id: championship.id,
       name: championship.nombre,
-      judges: judges,
+      bancaA: bancaA,
+      bancaB: bancaB,
+      categoriasBanca: categoriasBanca,
       categories: championship.categorias.map(catName => ({
         name: catName,
         gymnasts: []
@@ -167,9 +172,19 @@ export class ChampionshipsListComponent implements OnInit {
     this.router.navigate(['/']);
   }
 
-  getJudgesNames(jueces: Array<{ nombre: string, rol: string }>): string {
+  getJudgesNames(jueces: any[]): string {
     if (!jueces || jueces.length === 0) return '';
     return jueces.map(j => j.nombre).join(', ');
+  }
+
+  getJudgeRoleDescription(juez: any): string {
+    if (!juez) return '';
+    if (juez.banca) {
+      const am = juez.rol_am || '—';
+      const pm = juez.rol_pm || '—';
+      return `Banca ${juez.banca} (AM: ${am} | PM: ${pm})`;
+    }
+    return juez.rol || '';
   }
 
   formatDate(dateString: string): string {

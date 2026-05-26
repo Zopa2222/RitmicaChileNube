@@ -34,7 +34,7 @@
                     <div class="stat-card">
                         <mat-icon>gavel</mat-icon>
                         <div class="stat-content">
-                            <span class="stat-value">{{ championship?.judges.length || 0 }}</span>
+                            <span class="stat-value">{{ (championship?.bancaA?.length || 0) + (championship?.bancaB?.length || 0) }}</span>
                             <span class="stat-label">Jueces</span>
                         </div>
                     </div>

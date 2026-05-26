@@ -133,16 +133,21 @@ export class ScoringService {
 
         const sorted = [...scores].sort((a, b) => a - b);
 
+        // Helper: round to 2 decimals to avoid floating-point issues
+        // e.g. 4.5 - 3.9 = 0.6000000000000001 in JS → round to 0.60
+        const roundedDiff = (a: number, b: number): number =>
+            Math.round((b - a) * 100) / 100;
+
         if (sorted.length === 2) {
-            // 2 judges: simple difference
-            return (sorted[1] - sorted[0]) > 0.6;
+            // 2 judges: error only if difference is strictly > 0.6
+            return roundedDiff(sorted[0], sorted[1]) > 0.6;
         }
 
         if (sorted.length === 3) {
             // 3 judges: check consecutive pairs only
             // e.g. [1, 1.6, 2.2] → 1→1.6 = 0.6 OK, 1.6→2.2 = 0.6 OK → valid
             for (let i = 0; i < sorted.length - 1; i++) {
-                if ((sorted[i + 1] - sorted[i]) > 0.6) {
+                if (roundedDiff(sorted[i], sorted[i + 1]) > 0.6) {
                     return true;
                 }
             }
@@ -153,19 +158,19 @@ export class ScoringService {
         const middle = sorted.slice(1, -1);
         const middleMin = middle[0];
         const middleMax = middle[middle.length - 1];
-        return (middleMax - middleMin) > 0.6;
+        return roundedDiff(middleMin, middleMax) > 0.6;
     }
 
     /**
-     * Get all score column names based on judges
+     * Get all score column names based on judges.
+     * L and P judges are excluded (no score columns).
      */
     getScoreColumns(judges: Judge[]): string[] {
         const columns: string[] = [];
 
         // Order: DB, DA, A judges, E judges
-        // DA2/DB2 are secondary judges but share the same score column (DA/DB)
-        if (judges.some(j => j.role === 'DB' || j.role === 'DB2')) columns.push('DB');
-        if (judges.some(j => j.role === 'DA' || j.role === 'DA2')) columns.push('DA');
+        if (judges.some(j => j.role === 'DB')) columns.push('DB');
+        if (judges.some(j => j.role === 'DA')) columns.push('DA');
 
         // Add A judges
         const aJudges = judges.filter(j => j.role === 'A').sort((a, b) => (a.index || 0) - (b.index || 0));
@@ -175,8 +180,7 @@ export class ScoringService {
         const eJudges = judges.filter(j => j.role === 'E').sort((a, b) => (a.index || 0) - (b.index || 0));
         eJudges.forEach(j => columns.push(getJudgeDisplayName(j)));
 
-        // Add L if exists
-        if (judges.some(j => j.role === 'L')) columns.push('L');
+        // L and P roles intentionally excluded — no score columns
 
         return columns;
     }

@@ -24,7 +24,7 @@ export class ApiService {
      * Add a judge to the championship
      * POST /campeonatos/{id}/jueces
      */
-    addJudge(championshipId: string, judge: { nombre: string, rol: string }): Observable<any> {
+    addJudge(championshipId: string, judge: { nombre: string, banca: string, rol_am: string | null, rol_pm: string | null }): Observable<any> {
         return this.http.post<any>(`${this.API_URL}/campeonatos/${championshipId}/jueces`, judge);
     }
 

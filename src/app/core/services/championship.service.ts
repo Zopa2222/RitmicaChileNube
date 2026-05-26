@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Championship } from '../models/championship.model';
 import { Category } from '../models/category.model';
-import { Judge } from '../models/judge.model';
+import { BancaJudge } from '../models/judge.model';
 
 @Injectable({
     providedIn: 'root'
@@ -63,10 +63,20 @@ export class ChampionshipService {
     }
 
     /**
-     * Get judges from current championship
+     * Get judges for a specific banca
      */
-    getJudges(): Judge[] {
-        return this.championshipSubject.value?.judges || [];
+    getBancaJudges(banca: 'A' | 'B'): BancaJudge[] {
+        const champ = this.championshipSubject.value;
+        if (!champ) return [];
+        return banca === 'A' ? champ.bancaA : champ.bancaB;
+    }
+
+    /**
+     * Get the banca assigned to a category
+     */
+    getCategoryBanca(categoryName: string): 'A' | 'B' {
+        const champ = this.championshipSubject.value;
+        return champ?.categoriasBanca?.[categoryName] || 'A';
     }
 
     /**

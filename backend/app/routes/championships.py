@@ -20,19 +20,45 @@ def list_championships():
             if metadata:
                 # Get categories from collection names (excluding metadata and jueces)
                 all_collections = db.list_collection_names()
-                categories = [
+                available_categories = [
                     col for col in all_collections 
                     if col not in ['metadata', 'jueces']
                 ]
                 
+                # Map normalized names to original display names
+                categorias_orden = metadata.get('categorias_orden', [])
+                norm_to_orig = {MongoDB.normalize_name(cat): cat for cat in categorias_orden}
+                
+                categories = []
+                if categorias_orden:
+                    # Order existing categories and use original display names
+                    for cat in categorias_orden:
+                        norm_cat = MongoDB.normalize_name(cat)
+                        if norm_cat in available_categories:
+                            categories.append(cat)
+                    # Add any categories not in the order list
+                    for col in available_categories:
+                        if col not in [MongoDB.normalize_name(c) for c in categories]:
+                            categories.append(norm_to_orig.get(col, col))
+                else:
+                    # Try to map using categorias_banca if available
+                    categorias_banca = metadata.get('categorias_banca', {})
+                    banca_norm_to_orig = {MongoDB.normalize_name(k): k for k in categorias_banca.keys()}
+                    for col in available_categories:
+                        categories.append(banca_norm_to_orig.get(col, col))
+                
                 # Get judges list
                 jueces_list = list(db.jueces.find({}, {'_id': 0}))
+                
+                # Get banca assignment
+                categorias_banca = metadata.get('categorias_banca', {})
                 
                 championships.append({
                     'id': db_name,
                     'nombre': metadata.get('nombre_campeonato'),
                     'categorias': categories,
                     'jueces': jueces_list,
+                    'categorias_banca': categorias_banca,
                     'created_at': metadata.get('created_at')
                 })
         
@@ -96,19 +122,35 @@ def create_championship():
 
 @bp.route('/campeonatos/<campeonato>/jueces', methods=['POST'])
 def add_judge(campeonato):
-    """Add a judge to the championship"""
+    """Add a judge to the championship (new format with banca and AM/PM roles)"""
     try:
         data = request.get_json()
         nombre = data.get('nombre')
-        rol = data.get('rol')
+        banca = data.get('banca')  # 'A' or 'B'
+        rol_am = data.get('rol_am')  # JudgeRole or null
+        rol_pm = data.get('rol_pm')  # JudgeRole or null
         
-        if not nombre or not rol:
-            return jsonify({'error': 'Nombre y rol son requeridos'}), 400
+        # Support legacy format (single 'rol' field)
+        if not banca and data.get('rol'):
+            banca = 'A'
+            rol_am = data.get('rol')
+            rol_pm = data.get('rol')
         
-        # Validate rol
-        valid_roles = ['DA', 'DA2', 'DB', 'DB2', 'E1', 'E2', 'E3', 'E4', 'A1', 'A2', 'A3', 'A4', 'L']
-        if rol not in valid_roles:
-            return jsonify({'error': f'Rol inválido. Debe ser uno de: {", ".join(valid_roles)}'}), 400
+        if not nombre:
+            return jsonify({'error': 'Nombre es requerido'}), 400
+        
+        if not banca or banca not in ('A', 'B'):
+            return jsonify({'error': 'Banca debe ser "A" o "B"'}), 400
+        
+        if not rol_am and not rol_pm:
+            return jsonify({'error': 'El juez debe tener al menos un rol (AM o PM)'}), 400
+        
+        # Validate roles
+        valid_roles = ['DA', 'DB', 'E', 'A', 'L', 'P']
+        if rol_am and rol_am not in valid_roles:
+            return jsonify({'error': f'Rol AM inválido. Debe ser uno de: {", ".join(valid_roles)}'}), 400
+        if rol_pm and rol_pm not in valid_roles:
+            return jsonify({'error': f'Rol PM inválido. Debe ser uno de: {", ".join(valid_roles)}'}), 400
         
         # Check if championship exists
         db = MongoDB.get_database(campeonato)
@@ -117,20 +159,11 @@ def add_judge(campeonato):
                 'error': f'El campeonato "{campeonato}" no existe. Debe crear el campeonato primero.'
             }), 404
         
-        # Check if a judge with this role already exists
-        existing_judge = db.jueces.find_one({'rol': rol})
-        if existing_judge:
-            return jsonify({
-                'error': f'Ya existe un juez con el rol "{rol}": {existing_judge.get("nombre")}',
-                'existente': {
-                    'nombre': existing_judge.get('nombre'),
-                    'rol': existing_judge.get('rol')
-                }
-            }), 400
-        
         juez = {
             'nombre': nombre,
-            'rol': rol,
+            'banca': banca,
+            'rol_am': rol_am,
+            'rol_pm': rol_pm,
             'created_at': datetime.utcnow()
         }
         
@@ -140,7 +173,7 @@ def add_judge(campeonato):
         return jsonify({
             'success': True,
             'juez': juez,
-            'mensaje': f'Juez "{nombre}" agregado con rol "{rol}" en colección "jueces"'
+            'mensaje': f'Juez "{nombre}" agregado en Banca {banca} (AM: {rol_am}, PM: {rol_pm})'
         }), 201
         
     except Exception as e:
@@ -169,7 +202,7 @@ def upload_orden_paso(campeonato):
             }), 404
         
         # Parse Excel
-        categories = excel_service.parse_excel_file(file)
+        categories, categorias_banca = excel_service.parse_excel_file(file)
         
         if not categories:
             print(f"ERROR: No se encontraron categorías en el archivo {file.filename}")
@@ -208,18 +241,22 @@ def upload_orden_paso(campeonato):
             else:
                 print(f"WARN: Lista de gimnastas vacía para categoría '{category_name}'")
         
-        # Save category order in metadata to preserve Excel presentation order
+        # Save category order and banca assignments in metadata
         db.metadata.update_one(
             {},
-            {'$set': {'categorias_orden': category_names}},
+            {'$set': {
+                'categorias_orden': category_names,
+                'categorias_banca': categorias_banca
+            }},
             upsert=False
         )
-        print(f"DEBUG: ✓ Guardado orden de categorías en metadata")
+        print(f"DEBUG: ✓ Guardado orden de categorías y asignación de bancas en metadata")
         print(f"DEBUG: ✓ Procesadas {len(category_names)} categorías como colecciones")
         
         return jsonify({
             'success': True,
             'categorias': category_names,
+            'categorias_banca': categorias_banca,
             'mensaje': f'Se crearon {len(category_names)} colecciones de categorías en la base de datos "{campeonato}"',
             'base_datos': campeonato,
             'colecciones': [MongoDB.normalize_name(cat) for cat in category_names]
@@ -250,35 +287,40 @@ def list_categories(campeonato):
             if col not in ['metadata', 'jueces']
         ]
         
-        # Get ordering from metadata if available
+        # Get banca assignment from metadata
         metadata = db.metadata.find_one({}, {'_id': 0})
+        categorias_banca = metadata.get('categorias_banca', {}) if metadata else {}
         categorias_orden = metadata.get('categorias_orden', []) if metadata else []
         
         # Order categories according to metadata, then append any new ones not in order list
+        norm_to_orig = {MongoDB.normalize_name(cat): cat for cat in categorias_orden}
+        
+        categories = []
         if categorias_orden:
-            # Normalize names for comparison
-            normalized_orden = [MongoDB.normalize_name(cat) for cat in categorias_orden]
-            
-            # Order existing categories
-            categories = []
-            for normalized_cat in normalized_orden:
-                if normalized_cat in available_categories:
-                    categories.append(normalized_cat)
+            # Order existing categories and use original display names
+            for cat in categorias_orden:
+                norm_cat = MongoDB.normalize_name(cat)
+                if norm_cat in available_categories:
+                    categories.append(cat)
             
             # Add any categories not in the order list (shouldn't happen, but just in case)
-            for cat in available_categories:
-                if cat not in categories:
-                    categories.append(cat)
-                    print(f"WARN: Category '{cat}' not in metadata order, appending at end")
+            for norm_cat in available_categories:
+                if norm_cat not in [MongoDB.normalize_name(c) for c in categories]:
+                    orig_name = norm_to_orig.get(norm_cat, norm_cat)
+                    categories.append(orig_name)
+                    print(f"WARN: Category '{norm_cat}' not in metadata order, appending at end")
         else:
-            # No order saved, return as-is
-            categories = available_categories
+            # No order saved, try to map using keys from categorias_banca
+            banca_norm_to_orig = {MongoDB.normalize_name(k): k for k in categorias_banca.keys()}
+            for norm_cat in available_categories:
+                categories.append(banca_norm_to_orig.get(norm_cat, norm_cat))
             print("WARN: No category order found in metadata, returning unordered")
         
         return jsonify({
             'success': True,
             'campeonato': campeonato,
             'categorias': categories,
+            'categorias_banca': categorias_banca,
             'total': len(categories)
         }), 200
         
@@ -388,6 +430,18 @@ def export_championship(campeonato):
         all_collections = db.list_collection_names()
         categorias = [col for col in all_collections if col not in ['metadata', 'jueces']]
         
+        # Respect ordering from metadata if available
+        categorias_orden = metadata.get('categorias_orden', [])
+        norm_to_orig = {MongoDB.normalize_name(cat): cat for cat in categorias_orden}
+        
+        if categorias_orden:
+            normalized_order = [MongoDB.normalize_name(c) for c in categorias_orden]
+            ordered = [c for c in normalized_order if c in categorias]
+            for c in categorias:
+                if c not in ordered:
+                    ordered.append(c)
+            categorias = ordered
+
         print(f"DEBUG: Exporting championship '{championship_name}' with {len(categorias)} categories")
         
         # Get all categories with gymnasts
@@ -397,8 +451,10 @@ def export_championship(campeonato):
             
             print(f"DEBUG: Category '{collection_name}' has {len(gimnastas)} gymnasts")
             
+            orig_name = norm_to_orig.get(collection_name, collection_name)
+            
             categories_data.append({
-                'categoria': collection_name,
+                'categoria': orig_name,
                 'gimnastas': gimnastas
             })
         
@@ -437,6 +493,8 @@ def export_championship_pdf(campeonato):
 
         # Respect ordering from metadata if available
         metadata_order = metadata.get('categorias_orden', [])
+        norm_to_orig = {MongoDB.normalize_name(cat): cat for cat in metadata_order}
+        
         if metadata_order:
             normalized_order = [MongoDB.normalize_name(c) for c in metadata_order]
             ordered = [c for c in normalized_order if c in categorias]
@@ -448,8 +506,11 @@ def export_championship_pdf(campeonato):
         categories_data = []
         for collection_name in categorias:
             gimnastas = list(db[collection_name].find({}, {'_id': 0}))
+            
+            orig_name = norm_to_orig.get(collection_name, collection_name)
+            
             categories_data.append({
-                'categoria': collection_name,
+                'categoria': orig_name,
                 'gimnastas': gimnastas
             })
 

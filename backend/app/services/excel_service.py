@@ -26,6 +26,7 @@ def parse_excel_file(file_stream):
     try:
         workbook = openpyxl.load_workbook(file_stream, data_only=True)
         categories = {}
+        categorias_banca = {}  # { category_name: 'A' | 'B' }
 
         print(f"DEBUG: Sheets found: {workbook.sheetnames}")
 
@@ -94,7 +95,8 @@ def parse_excel_file(file_stream):
 
                 is_footer_row = False
 
-                for (nombre_idx, club_idx, cat_idx) in column_groups:
+                for group_idx, (nombre_idx, club_idx, cat_idx) in enumerate(column_groups):
+                    banca = 'A' if group_idx == 0 else 'B'
                     name_val = padded_row[nombre_idx]
                     club_val = padded_row[club_idx] if club_idx is not None else None
                     cat_val  = padded_row[cat_idx]
@@ -128,6 +130,9 @@ def parse_excel_file(file_stream):
                         'club':      str(club_val).strip() if club_val else '',
                         'categoria': cat_str
                     })
+                    # Track banca assignment per category
+                    if cat_str not in categorias_banca:
+                        categorias_banca[cat_str] = banca
                     processed_count += 1
 
             print(f"DEBUG: Sheet {sheet_name}: Read {rows_read} rows, processed {processed_count} gymnasts, skipped {skipped_footer} footer rows")
@@ -135,16 +140,17 @@ def parse_excel_file(file_stream):
         print(f"\n=== EXCEL PARSING SUMMARY ===")
         print(f"Total categories found: {len(categories)}")
         for cat_name, gymnasts in categories.items():
-            print(f"  - {cat_name}: {len(gymnasts)} gimnastas")
+            banca_label = categorias_banca.get(cat_name, '?')
+            print(f"  - {cat_name} (Banca {banca_label}): {len(gymnasts)} gimnastas")
         print(f"=============================\n")
 
-        return categories
+        return categories, categorias_banca
 
     except Exception as e:
         print(f"ERROR parsing Excel: {str(e)}")
         import traceback
         traceback.print_exc()
-        return {}
+        return {}, {}
 
 
 def add_gymnast_to_category(categories, data):

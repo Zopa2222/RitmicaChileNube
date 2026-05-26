@@ -9,12 +9,12 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import Swal from 'sweetalert2';
 
-import { ExcelService } from '../../core/services/excel.service';
 import { ChampionshipService } from '../../core/services/championship.service';
 import { ApiService } from '../../core/services/api.service';
-import { Judge, JudgeRole } from '../../core/models/judge.model';
+import { JudgeRole, BancaJudge } from '../../core/models/judge.model';
 import { Championship } from '../../core/models/championship.model';
 
 @Component({
@@ -29,7 +29,8 @@ import { Championship } from '../../core/models/championship.model';
         MatSelectModule,
         MatButtonModule,
         MatIconModule,
-        MatChipsModule
+        MatChipsModule,
+        MatTooltipModule
     ],
     templateUrl: './setup.component.html',
     styleUrls: ['./setup.component.scss']
@@ -41,39 +42,69 @@ export class SetupComponent {
     loading: boolean = false;
     error: string = '';
 
-    judgeRoles: JudgeRole[] = ['DB', 'DA', 'A', 'E', 'L'];
+    judgeRoles: (JudgeRole | '')[] = ['', 'DB', 'DA', 'A', 'E', 'L', 'P'];
+    roleLabels: { [key: string]: string } = {
+        '': '— Sin rol',
+        'DA': 'DA (Dificultad A)',
+        'DB': 'DB (Dificultad B)',
+        'E': 'E (Ejecución)',
+        'A': 'A (Artístico)',
+        'L': 'L (Línea)',
+        'P': 'P (Planilla)'
+    };
 
     constructor(
         private fb: FormBuilder,
-        private excelService: ExcelService,
         private championshipService: ChampionshipService,
         private apiService: ApiService,
         private router: Router
     ) {
         this.setupForm = this.fb.group({
             championshipName: ['', Validators.required],
-            judges: this.fb.array([])
+            bancaA: this.fb.array([]),
+            bancaB: this.fb.array([])
         });
 
-        // Add initial judge
-        this.addJudge();
+        // Add initial judges for each banca
+        this.addJudge('A');
+        this.addJudge('B');
     }
 
-    get judges(): FormArray {
-        return this.setupForm.get('judges') as FormArray;
+    get bancaA(): FormArray {
+        return this.setupForm.get('bancaA') as FormArray;
     }
 
-    addJudge(): void {
+    get bancaB(): FormArray {
+        return this.setupForm.get('bancaB') as FormArray;
+    }
+
+    addJudge(banca: 'A' | 'B'): void {
         const judgeGroup = this.fb.group({
             name: ['', Validators.required],
-            role: ['', Validators.required]
+            roleAM: ['', Validators.required],
+            rolePM: ['']
         });
-        this.judges.push(judgeGroup);
+
+        // Auto-copy roleAM to rolePM when roleAM changes
+        judgeGroup.get('roleAM')!.valueChanges.subscribe(val => {
+            const pmCtrl = judgeGroup.get('rolePM')!;
+            // Only auto-fill if PM is currently empty
+            if (!pmCtrl.value) {
+                pmCtrl.setValue(val);
+            }
+        });
+
+        if (banca === 'A') {
+            this.bancaA.push(judgeGroup);
+        } else {
+            this.bancaB.push(judgeGroup);
+        }
     }
 
-    removeJudge(index: number): void {
-        if (this.judges.length > 1) {
-            this.judges.removeAt(index);
+    removeJudge(banca: 'A' | 'B', index: number): void {
+        const array = banca === 'A' ? this.bancaA : this.bancaB;
+        if (array.length > 0) {
+            array.removeAt(index);
         }
     }
 
@@ -87,19 +118,41 @@ export class SetupComponent {
     }
 
     validateJudges(): string | null {
-        const judges = this.judges.value as { name: string; role: JudgeRole }[];
+        // Validate each banca+jornada independently
+        for (const banca of ['A', 'B'] as const) {
+            const judges = (banca === 'A' ? this.bancaA.value : this.bancaB.value) as
+                { name: string; roleAM: string; rolePM: string }[];
 
-        const daCount = judges.filter(j => j.role === 'DA').length;
-        const dbCount = judges.filter(j => j.role === 'DB').length;
-        const eCount = judges.filter(j => j.role === 'E').length;
-        const aCount = judges.filter(j => j.role === 'A').length;
-        const lCount = judges.filter(j => j.role === 'L').length;
+            if (judges.length === 0) continue; // Banca can be empty
 
-        if (daCount < 1 || daCount > 2) return 'Debe haber entre 1 y 2 jueces DA';
-        if (dbCount < 1 || dbCount > 2) return 'Debe haber entre 1 y 2 jueces DB';
-        if (eCount < 1 || eCount > 4) return 'Debe haber entre 1 y 4 jueces E';
-        if (aCount < 1 || aCount > 4) return 'Debe haber entre 1 y 4 jueces A';
-        if (lCount > 1) return 'Puede haber máximo 1 juez L';
+            for (const jornada of ['AM', 'PM'] as const) {
+                const roles = judges
+                    .map(j => jornada === 'AM' ? j.roleAM : j.rolePM)
+                    .filter(r => r && r !== '');
+
+                if (roles.length === 0) continue; // No judges for this jornada
+
+                const daCount = roles.filter(r => r === 'DA').length;
+                const dbCount = roles.filter(r => r === 'DB').length;
+                const eCount = roles.filter(r => r === 'E').length;
+                const aCount = roles.filter(r => r === 'A').length;
+                const pCount = roles.filter(r => r === 'P').length;
+                // L has no limit
+
+                if (daCount > 2) return `Banca ${banca} ${jornada}: máximo 2 jueces DA (tiene ${daCount})`;
+                if (dbCount > 2) return `Banca ${banca} ${jornada}: máximo 2 jueces DB (tiene ${dbCount})`;
+                if (eCount > 4) return `Banca ${banca} ${jornada}: máximo 4 jueces E (tiene ${eCount})`;
+                if (aCount > 4) return `Banca ${banca} ${jornada}: máximo 4 jueces A (tiene ${aCount})`;
+                if (pCount > 2) return `Banca ${banca} ${jornada}: máximo 2 jueces Planilla (tiene ${pCount})`;
+            }
+
+            // Each judge must have at least one role
+            for (const j of judges) {
+                if ((!j.roleAM || j.roleAM === '') && (!j.rolePM || j.rolePM === '')) {
+                    return `Banca ${banca}: el juez "${j.name || '(sin nombre)'}" debe tener al menos un rol (AM o PM)`;
+                }
+            }
+        }
 
         return null;
     }
@@ -123,12 +176,18 @@ export class SetupComponent {
 
     async onSubmit(): Promise<void> {
         if (!this.setupForm.valid) {
-            this.error = 'Por favor complete todos los campos';
+            this.error = 'Por favor complete todos los campos requeridos';
             return;
         }
 
         if (!this.selectedFile) {
             this.error = 'Por favor seleccione un archivo Excel';
+            return;
+        }
+
+        // At least one banca must have judges
+        if (this.bancaA.length === 0 && this.bancaB.length === 0) {
+            this.error = 'Debe agregar jueces en al menos una banca';
             return;
         }
 
@@ -150,28 +209,30 @@ export class SetupComponent {
             const championshipId = createResponse.id;
             console.log('Championship created:', championshipId);
 
-            // 2. Add judges
-            const judgesData = this.judges.value as { name: string; role: JudgeRole }[];
-            const roleCounters: { [key: string]: number } = { E: 1, A: 1, DA: 1, DB: 1 };
+            // 2. Add judges from both bancas
+            const allBancaJudges: { banca: 'A' | 'B'; data: any }[] = [];
 
-            for (const judge of judgesData) {
-                // Convert role with index for DA/DB second judge and E/A
-                let rolBackend: string = judge.role;
-                if (judge.role === 'DA') {
-                    rolBackend = roleCounters['DA'] === 1 ? 'DA' : 'DA2';
-                    roleCounters['DA']++;
-                } else if (judge.role === 'DB') {
-                    rolBackend = roleCounters['DB'] === 1 ? 'DB' : 'DB2';
-                    roleCounters['DB']++;
-                } else if (judge.role === 'E' || judge.role === 'A') {
-                    rolBackend = `${judge.role}${roleCounters[judge.role]++}`;
+            for (const banca of ['A', 'B'] as const) {
+                const judges = (banca === 'A' ? this.bancaA.value : this.bancaB.value) as
+                    { name: string; roleAM: string; rolePM: string }[];
+
+                for (const judge of judges) {
+                    const rolAM = judge.roleAM && judge.roleAM !== '' ? judge.roleAM : null;
+                    const rolPM = judge.rolePM && judge.rolePM !== '' ? judge.rolePM : null;
+
+                    console.log('Adding judge:', judge.name, 'Banca:', banca, 'AM:', rolAM, 'PM:', rolPM);
+                    await this.apiService.addJudge(championshipId, {
+                        nombre: judge.name,
+                        banca: banca,
+                        rol_am: rolAM,
+                        rol_pm: rolPM
+                    }).toPromise();
+
+                    allBancaJudges.push({
+                        banca,
+                        data: { name: judge.name, roleAM: rolAM, rolePM: rolPM }
+                    });
                 }
-
-                console.log('Adding judge:', judge.name, 'with role:', rolBackend);
-                await this.apiService.addJudge(championshipId, {
-                    nombre: judge.name,
-                    rol: rolBackend
-                }).toPromise();
             }
 
             // 3. Upload Excel file
@@ -182,33 +243,23 @@ export class SetupComponent {
             ).toPromise();
             console.log('Excel uploaded, categories:', uploadResponse.categorias);
 
-            // 4. Save championship info to local service
-            const processedJudges: Judge[] = [];
-            const roleCounters2: { [key: string]: number } = { E: 1, A: 1, DA: 1, DB: 1 };
+            // 4. Build championship object
+            const bancaAJudges: BancaJudge[] = allBancaJudges
+                .filter(j => j.banca === 'A')
+                .map(j => j.data as BancaJudge);
 
-            judgesData.forEach(j => {
-                const judge: Judge = {
-                    name: j.name,
-                    role: j.role
-                };
+            const bancaBJudges: BancaJudge[] = allBancaJudges
+                .filter(j => j.banca === 'B')
+                .map(j => j.data as BancaJudge);
 
-                if (j.role === 'E' || j.role === 'A') {
-                    judge.index = roleCounters2[j.role]++;
-                } else if (j.role === 'DA') {
-                    if (roleCounters2['DA'] > 1) judge.role = 'DA2';
-                    roleCounters2['DA']++;
-                } else if (j.role === 'DB') {
-                    if (roleCounters2['DB'] > 1) judge.role = 'DB2';
-                    roleCounters2['DB']++;
-                }
-
-                processedJudges.push(judge);
-            });
+            const categoriasBanca = uploadResponse.categorias_banca || {};
 
             const championship: Championship = {
                 id: championshipId,
                 name: championshipName,
-                judges: processedJudges,
+                bancaA: bancaAJudges,
+                bancaB: bancaBJudges,
+                categoriasBanca: categoriasBanca,
                 categories: uploadResponse.categorias.map((catName: string) => ({
                     name: catName,
                     gymnasts: []

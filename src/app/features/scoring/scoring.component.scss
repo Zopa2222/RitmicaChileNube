@@ -115,7 +115,7 @@
 }
 
 .content-header {
-    padding: 25px 40px;
+    padding: 20px 40px;
     background: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
@@ -123,12 +123,63 @@
     justify-content: space-between;
     align-items: center;
     z-index: 10;
+    flex-wrap: wrap;
+    gap: 15px;
+
+    .header-left {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
 
     h1 {
-        font-size: 28px;
+        font-size: 24px;
         color: var(--text-main);
         font-weight: 800;
         margin: 0;
+    }
+
+    .banca-jornada-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .banca-indicator {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 13px;
+        color: white;
+        letter-spacing: 0.5px;
+
+        &.banca-a {
+            background: linear-gradient(135deg, #667eea, #4f46e5);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.35);
+        }
+
+        &.banca-b {
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            box-shadow: 0 2px 8px rgba(168, 85, 247, 0.35);
+        }
+    }
+
+    .jornada-toggle {
+        border-radius: 20px;
+        overflow: hidden;
+
+        ::ng-deep .mat-button-toggle-appearance-standard {
+            height: 30px;
+        }
+
+        ::ng-deep .mat-button-toggle-label-content {
+            line-height: 30px;
+            padding: 0 14px;
+            font-weight: 600;
+            font-size: 13px;
+        }
     }
 
     .header-actions {
@@ -207,6 +258,32 @@
             cursor: grabbing;
             color: #667eea;
         }
+    }
+
+    .number-column {
+        width: 45px;
+        min-width: 45px;
+        text-align: center;
+    }
+
+    .number-cell {
+        text-align: center;
+        width: 45px;
+        min-width: 45px;
+    }
+
+    .gymnast-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--primary-gradient, linear-gradient(135deg, #667eea, #764ba2));
+        color: white;
+        font-weight: 700;
+        font-size: 13px;
+        box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
     }
 
     .name-column {

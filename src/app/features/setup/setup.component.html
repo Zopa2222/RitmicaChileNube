@@ -29,47 +29,110 @@
           </div>
         </div>
 
-        <!-- Judges Section -->
+        <!-- Judges Section — Banca A -->
         <div class="judges-section">
-          <div class="section-header">
-            <h3>Jueces</h3>
-            <button mat-raised-button color="primary" type="button" (click)="addJudge()">
-              <mat-icon>add</mat-icon>
-              Agregar Juez
-            </button>
-          </div>
-
-          <div formArrayName="judges" class="judges-list">
-            <div *ngFor="let judge of judges.controls; let i = index" [formGroupName]="i" class="judge-row">
-              <mat-form-field appearance="outline" class="judge-name">
-                <mat-label>Nombre del Juez</mat-label>
-                <input matInput formControlName="name" placeholder="Nombre completo">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="judge-role">
-                <mat-label>Rol</mat-label>
-                <mat-select formControlName="role">
-                  <mat-option *ngFor="let role of judgeRoles" [value]="role">
-                    {{ role }}
-                  </mat-option>
-                </mat-select>
-              </mat-form-field>
-
-              <button mat-icon-button color="warn" type="button" (click)="removeJudge(i)"
-                [disabled]="judges.length === 1">
-                <mat-icon>delete</mat-icon>
+          <div class="banca-block">
+            <div class="section-header">
+              <div class="banca-title">
+                <span class="banca-badge banca-a">A</span>
+                <h3>Banca A</h3>
+              </div>
+              <button mat-raised-button color="primary" type="button" (click)="addJudge('A')">
+                <mat-icon>add</mat-icon>
+                Agregar Juez
               </button>
+            </div>
+
+            <div formArrayName="bancaA" class="judges-list">
+              <div *ngFor="let judge of bancaA.controls; let i = index" [formGroupName]="i" class="judge-row">
+                <mat-form-field appearance="outline" class="judge-name">
+                  <mat-label>Nombre del Juez</mat-label>
+                  <input matInput formControlName="name" placeholder="Nombre completo">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="judge-role">
+                  <mat-label>Rol AM</mat-label>
+                  <mat-select formControlName="roleAM">
+                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
+                      {{ roleLabels[role] || role }}
+                    </mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="judge-role">
+                  <mat-label>Rol PM</mat-label>
+                  <mat-select formControlName="rolePM">
+                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
+                      {{ roleLabels[role] || role }}
+                    </mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <button mat-icon-button color="warn" type="button" (click)="removeJudge('A', i)"
+                  matTooltip="Eliminar juez">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
             </div>
           </div>
 
+          <!-- Judges Section — Banca B -->
+          <div class="banca-block">
+            <div class="section-header">
+              <div class="banca-title">
+                <span class="banca-badge banca-b">B</span>
+                <h3>Banca B</h3>
+              </div>
+              <button mat-raised-button color="primary" type="button" (click)="addJudge('B')">
+                <mat-icon>add</mat-icon>
+                Agregar Juez
+              </button>
+            </div>
+
+            <div formArrayName="bancaB" class="judges-list">
+              <div *ngFor="let judge of bancaB.controls; let i = index" [formGroupName]="i" class="judge-row">
+                <mat-form-field appearance="outline" class="judge-name">
+                  <mat-label>Nombre del Juez</mat-label>
+                  <input matInput formControlName="name" placeholder="Nombre completo">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="judge-role">
+                  <mat-label>Rol AM</mat-label>
+                  <mat-select formControlName="roleAM">
+                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
+                      {{ roleLabels[role] || role }}
+                    </mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="judge-role">
+                  <mat-label>Rol PM</mat-label>
+                  <mat-select formControlName="rolePM">
+                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
+                      {{ roleLabels[role] || role }}
+                    </mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <button mat-icon-button color="warn" type="button" (click)="removeJudge('B', i)"
+                  matTooltip="Eliminar juez">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Judge Rules -->
           <div class="judge-rules">
-            <p><strong>Reglas de Jueces:</strong></p>
+            <p><strong>Reglas de Jueces (por banca + jornada):</strong></p>
             <ul>
-              <li>DA: 1 o 2 jueces (1 nota)</li>
-              <li>DB: 1 o 2 jueces (1 nota)</li>
-              <li>E: entre 1 y 4</li>
-              <li>A: entre 1 y 4</li>
-              <li>L: 0 o 1 (opcional)</li>
+              <li>DA: 1–2 jueces (1 nota de dificultad)</li>
+              <li>DB: 1–2 jueces (1 nota de dificultad)</li>
+              <li>E: 1–4 jueces (ejecución)</li>
+              <li>A: 1–4 jueces (artístico)</li>
+              <li>L: 0 o más (línea — no genera columna, se suma en Desc)</li>
+              <li>P: 0–2 (planilla — solo registro)</li>
+              <li>Un juez puede tener rol AM, PM, o ambos</li>
             </ul>
           </div>
         </div>

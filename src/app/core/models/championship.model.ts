@@ -1,11 +1,13 @@
-import { Judge } from './judge.model';
+import { BancaJudge } from './judge.model';
 import { Category } from './category.model';
 
 // Championship interface
 export interface Championship {
     id?: string;
     name: string;
-    judges: Judge[];
+    bancaA: BancaJudge[];
+    bancaB: BancaJudge[];
+    categoriasBanca: { [catName: string]: 'A' | 'B' };
     categories: Category[];
     createdAt?: Date;
 }
@@ -14,7 +16,9 @@ export interface Championship {
 export function createEmptyChampionship(): Championship {
     return {
         name: '',
-        judges: [],
+        bancaA: [],
+        bancaB: [],
+        categoriasBanca: {},
         categories: []
     };
 }

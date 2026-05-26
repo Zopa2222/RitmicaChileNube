@@ -59,7 +59,7 @@
                     <div class="judges-table">
                         <div class="judge-row" *ngFor="let juez of championship.jueces">
                             <span class="judge-name">{{ juez.nombre }}</span>
-                            <span class="judge-role">{{ juez.rol }}</span>
+                            <span class="judge-role">{{ getJudgeRoleDescription(juez) }}</span>
                         </div>
                     </div>
                 </div>

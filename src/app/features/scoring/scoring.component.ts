@@ -315,7 +315,24 @@ export class ScoringComponent implements OnInit, OnDestroy {
     sortByScore(): void {
         if (!this.currentCategory) return;
 
-        this.currentCategory.gymnasts.sort((a, b) => b.totalScore - a.totalScore);
+        this.currentCategory.gymnasts.sort((a, b) => {
+            // Primary: sort by total score (descending)
+            if (b.totalScore !== a.totalScore) {
+                return b.totalScore - a.totalScore;
+            }
+
+            // First tiebreaker: sort by E score (descending)
+            const eScoreA = this.scoringService.calculateEScore(a, this.judges);
+            const eScoreB = this.scoringService.calculateEScore(b, this.judges);
+            if (eScoreB !== eScoreA) {
+                return eScoreB - eScoreA;
+            }
+
+            // Second tiebreaker: sort by A score (descending)
+            const aScoreA = this.scoringService.calculateAScore(a, this.judges);
+            const aScoreB = this.scoringService.calculateAScore(b, this.judges);
+            return aScoreB - aScoreA;
+        });
         this.currentCategory.gymnasts.forEach((g, i) => g.order = i);
         this.markDirty();
 

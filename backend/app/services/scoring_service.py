@@ -81,6 +81,23 @@ def calculate_e_score(gymnast):
     return 0.0
 
 
+def calculate_a_score(gymnast):
+    """
+    Calculate A score for a gymnast (for second tiebreaker purposes)
+    
+    Args:
+        gymnast: dict with A array
+    
+    Returns:
+        float: the A score (10 - deduction)
+    """
+    a_scores = gymnast.get('A', [])
+    if a_scores:
+        a_deduction = calculate_area_deduction(a_scores)
+        return 10 - a_deduction
+    return 0.0
+
+
 def validate_scores(gymnast):
     """
     Validate scores and check for differences > 0.6 in E and A areas

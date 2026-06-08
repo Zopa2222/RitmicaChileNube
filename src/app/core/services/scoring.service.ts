@@ -82,6 +82,24 @@ export class ScoringService {
     }
 
     /**
+     * Calculate E score for a gymnast (for tiebreaker purposes)
+     * E score = 10 - deduction from E judges
+     */
+    calculateEScore(gymnast: Gymnast, judges: Judge[]): number {
+        const eJudges = judges.filter(j => j.role === 'E');
+        return this.calculateAreaScore(gymnast, eJudges, 'E');
+    }
+
+    /**
+     * Calculate A score for a gymnast (for second tiebreaker purposes)
+     * A score = 10 - deduction from A judges
+     */
+    calculateAScore(gymnast: Gymnast, judges: Judge[]): number {
+        const aJudges = judges.filter(j => j.role === 'A');
+        return this.calculateAreaScore(gymnast, aJudges, 'A');
+    }
+
+    /**
      * Validate scores and check for differences > 0.6 in E and A areas
      */
     validateScores(gymnast: Gymnast, judges: Judge[]): ScoreValidation {

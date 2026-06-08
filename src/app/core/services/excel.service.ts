@@ -126,17 +126,24 @@ export class ExcelService {
         const workbook = XLSX.utils.book_new();
 
         categories.forEach(category => {
-            // Sort gymnasts by total score (highest first), then by E score for tiebreaker
+            // Sort gymnasts by total score (highest first), then by E score, then by A score for tiebreaker
             const sortedGymnasts = [...category.gymnasts].sort((a, b) => {
                 // Primary: sort by total score (descending)
                 if (b.totalScore !== a.totalScore) {
                     return b.totalScore - a.totalScore;
                 }
 
-                // Tiebreaker: sort by E score (descending)
+                // First tiebreaker: sort by E score (descending)
                 const eScoreA = this.calculateEScore(a);
                 const eScoreB = this.calculateEScore(b);
-                return eScoreB - eScoreA;
+                if (eScoreB !== eScoreA) {
+                    return eScoreB - eScoreA;
+                }
+
+                // Second tiebreaker: sort by A score (descending)
+                const aScoreA = this.calculateAScore(a);
+                const aScoreB = this.calculateAScore(b);
+                return aScoreB - aScoreA;
             });
 
             // Prepare data for sheet
@@ -187,6 +194,19 @@ export class ExcelService {
 
         const eScores = eKeys.map(key => gymnast.scores[key]);
         const deduction = this.calculateDeduction(eScores);
+        return 10 - deduction;
+    }
+
+    /**
+     * Calculate A score for a gymnast (for second tiebreaker purposes)
+     */
+    private calculateAScore(gymnast: Gymnast): number {
+        // Get A judge scores and calculate A score (10 - deduction)
+        const aKeys = Object.keys(gymnast.scores).filter(key => key.startsWith('A'));
+        if (aKeys.length === 0) return 0;
+
+        const aScores = aKeys.map(key => gymnast.scores[key]);
+        const deduction = this.calculateDeduction(aScores);
         return 10 - deduction;
     }
 

@@ -1,7 +1,7 @@
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from io import BytesIO
-from app.services.scoring_service import calculate_e_score
+from app.services.scoring_service import calculate_e_score, calculate_a_score
 
 # Top-8 highlight color (gold-ish)
 TOP8_FILL = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")
@@ -235,10 +235,10 @@ def export_to_excel(championship_name, categories_data):
         category_name = category_data['categoria']
         gymnasts = category_data['gimnastas']
 
-        # Sort by total score descending, tiebreaker by E score
+        # Sort by total score descending, tiebreaker by E score, then A score
         sorted_gymnasts = sorted(
             gymnasts,
-            key=lambda g: (g.get('puntajeTotal', 0), calculate_e_score(g)),
+            key=lambda g: (g.get('puntajeTotal', 0), calculate_e_score(g), calculate_a_score(g)),
             reverse=True
         )
 
@@ -349,7 +349,7 @@ def export_to_pdf(championship_name, categories_data):
 
         sorted_gymnasts = sorted(
             gymnasts,
-            key=lambda g: (g.get('puntajeTotal', 0), calculate_e_score(g)),
+            key=lambda g: (g.get('puntajeTotal', 0), calculate_e_score(g), calculate_a_score(g)),
             reverse=True
         )
 

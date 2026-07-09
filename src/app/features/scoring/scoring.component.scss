@@ -362,13 +362,51 @@
         background: rgba(245, 158, 11, 0.14);
     }
 
-    .total-score {
+    .total-column,
+    .total-cell {
+        width: 74px;
+        min-width: 74px;
+        max-width: 74px;
+        text-align: center;
+    }
+
+    .actions-column,
+    .actions-cell {
+        width: 48px;
+        min-width: 48px;
+        max-width: 48px;
+        text-align: center;
+    }
+
+    thead th.total-column,
+    thead th.actions-column,
+    tbody td.total-cell,
+    tbody td.actions-cell {
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+
+    .actions-cell button[mat-icon-button] {
+        width: 30px;
+        height: 30px;
+        padding: 3px;
+    }
+
+    .actions-cell mat-icon {
+        width: 18px;
+        height: 18px;
         font-size: 18px;
+        line-height: 18px;
+    }
+
+    .total-score {
+        min-width: 54px;
+        font-size: 16px;
         font-weight: 800;
         color: #667eea;
         background: rgba(102, 126, 234, 0.1);
-        padding: 8px 15px;
-        border-radius: 20px;
+        padding: 6px 8px;
+        border-radius: 14px;
         display: inline-block;
     }
 }

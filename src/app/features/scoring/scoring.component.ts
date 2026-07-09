@@ -238,16 +238,10 @@ export class ScoringComponent implements OnInit, OnDestroy {
         event.preventDefault();
         const nextCol = colIdx + 1;
         // Try same row, next column (including Desc which is at scoreColumns.length)
-        let next = document.querySelector<HTMLInputElement>(
-            `input.score-input[data-row="${rowIdx}"][data-col="${nextCol}"]`
-        );
-        if (!next) {
+        if (!this.focusScoreCell(rowIdx, nextCol)) {
             // Move to next row, first score column
-            next = document.querySelector<HTMLInputElement>(
-                `input.score-input[data-row="${rowIdx + 1}"][data-col="0"]`
-            );
+            this.focusScoreCell(rowIdx + 1, 0);
         }
-        if (next) next.focus();
     }
 
     /** Move focus from Desc to next row's first score column */
@@ -255,10 +249,53 @@ export class ScoringComponent implements OnInit, OnDestroy {
         event.preventDefault();
         const input = event.target as HTMLInputElement;
         const rowIdx = parseInt(input.getAttribute('data-row') || '0', 10);
+        this.focusScoreCell(rowIdx + 1, 0);
+    }
+
+    /** Navigate score cells with arrow keys */
+    moveFocusWithArrows(event: KeyboardEvent, rowIdx: number, colIdx: number): void {
+        let targetRow = rowIdx;
+        let targetCol = colIdx;
+        const lastCol = this.scoreColumns.length;
+
+        switch (event.key) {
+            case 'ArrowRight':
+                targetCol = colIdx + 1;
+                if (targetCol > lastCol) {
+                    targetRow = rowIdx + 1;
+                    targetCol = 0;
+                }
+                break;
+            case 'ArrowLeft':
+                targetCol = colIdx - 1;
+                if (targetCol < 0) {
+                    targetRow = rowIdx - 1;
+                    targetCol = lastCol;
+                }
+                break;
+            case 'ArrowDown':
+                targetRow = rowIdx + 1;
+                break;
+            case 'ArrowUp':
+                targetRow = rowIdx - 1;
+                break;
+            default:
+                return;
+        }
+
+        if (this.focusScoreCell(targetRow, targetCol)) {
+            event.preventDefault();
+        }
+    }
+
+    private focusScoreCell(rowIdx: number, colIdx: number): boolean {
         const next = document.querySelector<HTMLInputElement>(
-            `input.score-input[data-row="${rowIdx + 1}"][data-col="0"]`
+            `input.score-input[data-row="${rowIdx}"][data-col="${colIdx}"]`
         );
-        if (next) next.focus();
+        if (!next) return false;
+
+        next.focus();
+        return true;
     }
 
     updateGymnastScore(gymnast: Gymnast): void {

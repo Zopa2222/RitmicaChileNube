@@ -112,6 +112,7 @@
                                         (input)="onScoreChange(gymnast, col, $event)"
                                         (focus)="onScoreFocus($event)"
                                         (keydown.enter)="moveFocus($event, i, colIdx)"
+                                        (keydown)="moveFocusWithArrows($event, i, colIdx)"
                                         [class.error]="hasScoreError(gymnast, col)"
                                         class="cell-input score-input"
                                         [attr.data-row]="i" [attr.data-col]="colIdx">
@@ -124,6 +125,7 @@
                                         (input)="onDescChange(gymnast, $event)"
                                         (focus)="onScoreFocus($event)"
                                         (keydown.enter)="moveFocusToNext($event)"
+                                        (keydown)="moveFocusWithArrows($event, i, scoreColumns.length)"
                                         class="cell-input score-input"
                                         [attr.data-row]="i" [attr.data-col]="scoreColumns.length">
                                 </td>

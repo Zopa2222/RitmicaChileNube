@@ -265,6 +265,14 @@ export class ScoringComponent implements OnInit, OnDestroy {
         gymnast.totalScore = this.scoringService.calculateTotalScore(gymnast, this.judges);
     }
 
+    getAScore(gymnast: Gymnast): number {
+        return this.scoringService.calculateAScore(gymnast, this.judges);
+    }
+
+    getEScore(gymnast: Gymnast): number {
+        return this.scoringService.calculateEScore(gymnast, this.judges);
+    }
+
     hasScoreError(gymnast: Gymnast, column: string): boolean {
         const validation = this.scoringService.validateScores(gymnast, this.judges);
         return validation.errorColumns.includes(column);

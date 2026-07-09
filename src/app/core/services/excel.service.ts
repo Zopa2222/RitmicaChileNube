@@ -152,7 +152,7 @@ export class ExcelService {
             // Header row
             const headers = ['Posición', 'Nombre', 'Club'];
             const scoreColumns = Object.keys(sortedGymnasts[0]?.scores || {}).sort();
-            headers.push(...scoreColumns, 'Desc', 'Total');
+            headers.push(...scoreColumns, 'Desc', 'Puntaje A', 'Puntaje E', 'Total');
             sheetData.push(headers);
 
             // Data rows
@@ -167,7 +167,12 @@ export class ExcelService {
                     row.push(gymnast.scores[col] || 0);
                 });
 
-                row.push(gymnast.desc, gymnast.totalScore.toFixed(2));
+                row.push(
+                    gymnast.desc,
+                    this.calculateAScore(gymnast).toFixed(2),
+                    this.calculateEScore(gymnast).toFixed(2),
+                    gymnast.totalScore.toFixed(2)
+                );
                 sheetData.push(row);
             });
 

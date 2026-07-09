@@ -75,6 +75,8 @@
                                 <th class="club-column">Club</th>
                                 <th *ngFor="let col of scoreColumns" class="score-column">{{ col }}</th>
                                 <th class="desc-column">Desc</th>
+                                <th class="area-score-column">Puntaje A</th>
+                                <th class="area-score-column">Puntaje E</th>
                                 <th class="total-column">Total</th>
                                 <th class="actions-column">Acciones</th>
                             </tr>
@@ -124,6 +126,14 @@
                                         (keydown.enter)="moveFocusToNext($event)"
                                         class="cell-input score-input"
                                         [attr.data-row]="i" [attr.data-col]="scoreColumns.length">
+                                </td>
+
+                                <!-- Area scores -->
+                                <td class="area-score-cell">
+                                    <span class="area-score area-score-a">{{ getAScore(gymnast).toFixed(2) }}</span>
+                                </td>
+                                <td class="area-score-cell">
+                                    <span class="area-score area-score-e">{{ getEScore(gymnast).toFixed(2) }}</span>
                                 </td>
 
                                 <!-- Total -->

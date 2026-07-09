@@ -337,6 +337,31 @@
         }
     }
 
+    .area-score-column,
+    .area-score-cell {
+        min-width: 95px;
+        text-align: center;
+    }
+
+    .area-score {
+        display: inline-block;
+        min-width: 68px;
+        padding: 7px 12px;
+        border-radius: 18px;
+        font-size: 15px;
+        font-weight: 800;
+    }
+
+    .area-score-a {
+        color: #0f766e;
+        background: rgba(20, 184, 166, 0.12);
+    }
+
+    .area-score-e {
+        color: #b45309;
+        background: rgba(245, 158, 11, 0.14);
+    }
+
     .total-score {
         font-size: 18px;
         font-weight: 800;

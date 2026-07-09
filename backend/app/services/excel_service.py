@@ -251,7 +251,7 @@ def export_to_excel(championship_name, categories_data):
             score_columns = _get_score_columns(sorted_gymnasts[0])
 
         # Header row
-        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Total']
+        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Puntaje A', 'Puntaje E', 'Total']
         worksheet.append(headers)
 
         # Style header
@@ -271,6 +271,8 @@ def export_to_excel(championship_name, categories_data):
             ]
             for col in score_columns:
                 row_data.append(_get_score_value(gymnast, col))
+            row_data.append(round(calculate_a_score(gymnast), 2))
+            row_data.append(round(calculate_e_score(gymnast), 2))
             row_data.append(gymnast.get('puntajeTotal', 0.0))
 
             worksheet.append(row_data)
@@ -361,7 +363,7 @@ def export_to_pdf(championship_name, categories_data):
             continue
 
         score_columns = _get_score_columns(sorted_gymnasts[0])
-        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Total']
+        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Puntaje A', 'Puntaje E', 'Total']
 
         table_data = [headers]
         for position, gymnast in enumerate(sorted_gymnasts, 1):
@@ -373,20 +375,29 @@ def export_to_pdf(championship_name, categories_data):
             for col in score_columns:
                 val = _get_score_value(gymnast, col)
                 row.append(f"{val:.2f}" if isinstance(val, float) else str(val))
+            row.append(f"{calculate_a_score(gymnast):.2f}")
+            row.append(f"{calculate_e_score(gymnast):.2f}")
             row.append(f"{gymnast.get('puntajeTotal', 0.0):.2f}")
             table_data.append(row)
 
         # Column widths
         num_cols = len(headers)
-        col_widths = [1.2*cm, 5*cm, 4*cm] + [1.8*cm] * (num_cols - 4) + [2*cm]
+        page_width, _ = landscape(A4)
+        usable_width = page_width - doc.leftMargin - doc.rightMargin
+        fixed_width = 1.1*cm + 4.0*cm + 3.0*cm + 1.6*cm
+        middle_cols = max(num_cols - 4, 0)
+        middle_width = (usable_width - fixed_width) / middle_cols if middle_cols else 0
+        middle_width = max(0.95*cm, min(1.55*cm, middle_width))
+        col_widths = [1.1*cm, 4.0*cm, 3.0*cm] + [middle_width] * middle_cols + [1.6*cm]
 
         table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        header_font_size = 7 if num_cols > 14 else 8
 
         style_commands = [
             ('BACKGROUND', (0, 0), (-1, 0), header_color),
             ('TEXTCOLOR', (0, 0), (-1, 0), white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 0), (-1, 0), header_font_size),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [white, light_gray]),

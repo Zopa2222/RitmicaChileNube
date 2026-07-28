@@ -3,12 +3,13 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Championship } from '../models/championship.model';
 import { Category } from '../models/category.model';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
     providedIn: 'root'
 })
 export class ApiService {
-    private readonly API_URL = 'http://localhost:8080';
+    private readonly API_URL = environment.apiUrl;
 
     constructor(private http: HttpClient) { }
 

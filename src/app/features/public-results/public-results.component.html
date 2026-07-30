@@ -1,13 +1,19 @@
 <main class="public-page">
     <header class="topbar">
-        <a routerLink="/" class="brand" aria-label="Ir al inicio">
-            <img src="assets/logo.jpeg" alt="" class="brand-logo">
-            <span>
-                <strong>Rítmica Chile</strong>
-                <small>Resultados oficiales</small>
+        <a
+            routerLink="/"
+            class="brand brand-lockup"
+            aria-label="Rítmica Chile, resultados públicos">
+            <img src="assets/logo.jpeg" alt="" class="brand-logo brand-lockup__logo">
+            <span class="brand-lockup__copy">
+                <strong class="brand-lockup__name">Rítmica Chile</strong>
+                <small class="brand-lockup__subtitle">Sistema oficial de puntajes</small>
             </span>
         </a>
-        <a routerLink="/" class="admin-link">Administración</a>
+        <nav class="internal-access" aria-label="Acceso al sistema">
+            <span>Jueces y administración</span>
+            <a routerLink="/ingresar" class="login-link">Iniciar sesión</a>
+        </nav>
     </header>
 
     <section

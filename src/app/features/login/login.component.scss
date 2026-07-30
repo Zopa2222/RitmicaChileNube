@@ -14,20 +14,11 @@
     top: 1.5rem;
     left: 1.5rem;
     z-index: 2;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.75rem;
-    color: #1e293b;
-    font-weight: 800;
-    text-decoration: none;
+    --brand-logo-size: 60px;
 }
 
-.brand img {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    object-fit: cover;
-    box-shadow: var(--shadow-md);
+.brand .brand-lockup__logo {
+    border-width: 3px;
 }
 
 .login-card {
@@ -135,6 +126,11 @@ mat-card-actions {
     .brand {
         top: 1rem;
         left: 1rem;
+        --brand-logo-size: 52px;
+    }
+
+    .brand-lockup__subtitle {
+        display: none;
     }
 
     .login-card {

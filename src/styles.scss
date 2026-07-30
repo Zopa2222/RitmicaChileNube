@@ -34,6 +34,46 @@
     --radius-full: 9999px;
 }
 
+/* Marca institucional compartida */
+.brand-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85rem;
+    color: #172554;
+    text-decoration: none;
+}
+
+.brand-lockup__logo {
+    width: var(--brand-logo-size, 56px);
+    height: var(--brand-logo-size, 56px);
+    flex: 0 0 auto;
+    object-fit: cover;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 8px 20px rgba(30, 41, 59, 0.16);
+}
+
+.brand-lockup__copy {
+    display: grid;
+    gap: 0.12rem;
+}
+
+.brand-lockup__name {
+    font-size: 1.12rem;
+    font-weight: 850;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+}
+
+.brand-lockup__subtitle {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
 /* Animations */
 @keyframes fadeIn {
     from {

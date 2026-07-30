@@ -2,9 +2,12 @@
     <div class="background-orb orb-one" aria-hidden="true"></div>
     <div class="background-orb orb-two" aria-hidden="true"></div>
 
-    <a class="brand" routerLink="/" aria-label="Volver al inicio">
-        <img src="assets/logo.jpeg" alt="">
-        <span>Rítmica Chile</span>
+    <a class="brand brand-lockup" routerLink="/" aria-label="Volver a resultados públicos">
+        <img src="assets/logo.jpeg" alt="" class="brand-lockup__logo">
+        <span class="brand-lockup__copy">
+            <strong class="brand-lockup__name">Rítmica Chile</strong>
+            <small class="brand-lockup__subtitle">Sistema oficial de puntajes</small>
+        </span>
     </a>
 
     <mat-card class="login-card">
@@ -112,7 +115,7 @@
         </mat-card-content>
 
         <mat-card-actions>
-            <a mat-button routerLink="/resultados">
+            <a mat-button routerLink="/">
                 <mat-icon>leaderboard</mat-icon>
                 Ver resultados públicos
             </a>

@@ -36,10 +36,19 @@ import {
         @if (user$ | async; as user) {
             <mat-toolbar class="session-toolbar">
                 <a
-                    class="toolbar-brand"
-                    [routerLink]="homeRoute(user.account_type)">
-                    <img src="assets/logo.jpeg" alt="">
-                    <span>Rítmica Chile</span>
+                    class="toolbar-brand brand-lockup"
+                    [routerLink]="homeRoute(user.account_type)"
+                    aria-label="Rítmica Chile, volver al inicio">
+                    <img
+                        src="assets/logo.jpeg"
+                        alt=""
+                        class="brand-lockup__logo">
+                    <span class="brand-lockup__copy">
+                        <strong class="brand-lockup__name">Rítmica Chile</strong>
+                        <small class="brand-lockup__subtitle">
+                            Sistema oficial de puntajes
+                        </small>
+                    </span>
                 </a>
                 <span class="toolbar-spacer"></span>
                 <div class="identity">
@@ -69,25 +78,14 @@ import {
             position: sticky;
             top: 0;
             z-index: 1000;
-            min-height: 64px;
+            min-height: 76px;
+            padding: 0 clamp(1rem, 3vw, 2.5rem);
             background: rgba(255, 255, 255, 0.96);
             border-bottom: 1px solid #e2e8f0;
             box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
         }
         .toolbar-brand {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.7rem;
-            color: #1e293b;
-            font-size: 1rem;
-            font-weight: 800;
-            text-decoration: none;
-        }
-        .toolbar-brand img {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
+            --brand-logo-size: 52px;
         }
         .toolbar-spacer { flex: 1; }
         .identity {
@@ -106,7 +104,14 @@ import {
             font-size: 0.72rem;
         }
         @media (max-width: 640px) {
-            .toolbar-brand span,
+            .session-toolbar {
+                min-height: 68px;
+                padding: 0 1rem;
+            }
+            .toolbar-brand {
+                --brand-logo-size: 46px;
+            }
+            .toolbar-brand .brand-lockup__subtitle,
             .identity,
             .logout-label {
                 display: none;

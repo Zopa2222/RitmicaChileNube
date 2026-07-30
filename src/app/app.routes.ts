@@ -1,5 +1,4 @@
 import { Routes } from '@angular/router';
-import { LandingComponent } from './features/landing/landing.component';
 import { ChampionshipsListComponent } from './features/championships-list/championships-list.component';
 import { SetupComponent } from './features/setup/setup.component';
 import { ScoringComponent } from './features/scoring/scoring.component';
@@ -29,8 +28,8 @@ import {
 const ADMIN_ROLES = ['SUPER_ADMIN', 'GLOBAL_ADMIN'] as const;
 
 export const routes: Routes = [
-    { path: '', component: LandingComponent },
-    { path: 'resultados', component: PublicResultsComponent },
+    { path: '', component: PublicResultsComponent },
+    { path: 'resultados', redirectTo: '', pathMatch: 'full' },
     {
         path: 'ingresar',
         component: LoginComponent,

@@ -14,7 +14,7 @@
 
 .topbar {
     max-width: 1440px;
-    height: 86px;
+    height: 98px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -22,46 +22,39 @@
 }
 
 .brand {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    color: #172033;
-    text-decoration: none;
-
-    span {
-        display: grid;
-        gap: 0.1rem;
-    }
-
-    strong {
-        font-size: 1rem;
-        letter-spacing: 0.01em;
-    }
-
-    small {
-        color: #667085;
-        font-size: 0.75rem;
-    }
+    --brand-logo-size: 64px;
 }
 
 .brand-logo {
-    width: 48px;
-    height: 48px;
-    object-fit: cover;
-    border: 2px solid #fff;
-    border-radius: 50%;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+    border-width: 3px;
 }
 
-.admin-link {
+.internal-access {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: #667085;
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+
+.login-link {
     padding: 0.65rem 1rem;
     border: 1px solid #d7deea;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.72);
     color: #344054;
     font-size: 0.84rem;
-    font-weight: 700;
+    font-weight: 750;
     text-decoration: none;
+    transition: 150ms ease;
+
+    &:hover,
+    &:focus-visible {
+        border-color: #a5b4fc;
+        background: #fff;
+        color: #3730a3;
+    }
 }
 
 .championship-hero {
@@ -509,12 +502,16 @@
     }
 
     .topbar {
-        height: 72px;
+        height: 80px;
     }
 
-    .brand small,
-    .admin-link {
+    .brand-lockup__subtitle,
+    .internal-access > span {
         display: none;
+    }
+
+    .brand {
+        --brand-logo-size: 52px;
     }
 
     .championship-hero {

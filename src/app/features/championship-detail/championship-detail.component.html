@@ -1,0 +1,162 @@
+<main class="detail-page">
+    <a mat-button routerLink="/championships" class="back-link">
+        <mat-icon>arrow_back</mat-icon>
+        Volver a campeonatos
+    </a>
+
+    <section *ngIf="loading" class="state-panel">
+        <mat-spinner diameter="44"></mat-spinner>
+        <p>Cargando campeonato…</p>
+    </section>
+
+    <section *ngIf="!loading && errorMessage" class="state-panel">
+        <mat-icon>error_outline</mat-icon>
+        <h1>No pudimos abrir el campeonato</h1>
+        <p>{{ errorMessage }}</p>
+        <button mat-stroked-button type="button" (click)="load()">
+            Reintentar
+        </button>
+    </section>
+
+    <ng-container *ngIf="!loading && championship as item">
+        <header class="detail-header">
+            <div>
+                <span
+                    class="status"
+                    [class]="'status ' + item.status.toLowerCase()">
+                    {{ statusLabel(item.status) }}
+                </span>
+                <h1>{{ item.name }}</h1>
+                <p>{{ item.kind }} · Zona {{ item.zone }}</p>
+            </div>
+            <div class="header-actions">
+                <a
+                    *ngIf="item.counts.days > 0"
+                    mat-stroked-button
+                    [routerLink]="['/championships', item.id, 'operations']">
+                    <mat-icon>scoreboard</mat-icon>
+                    Operación
+                </a>
+                <a
+                    *ngIf="item.status === 'DRAFT' && item.counts.days === 0"
+                    mat-flat-button
+                    color="primary"
+                    [routerLink]="['/championships', item.id, 'import']">
+                    <mat-icon>upload_file</mat-icon>
+                    Cargar orden de paso
+                </a>
+                <button
+                    *ngIf="item.status === 'DRAFT' || item.status === 'PAUSED'"
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    (click)="activate()"
+                    [disabled]="processing || item.counts.categories === 0">
+                    <mat-icon>play_arrow</mat-icon>
+                    {{ item.status === 'PAUSED' ? 'Reanudar' : 'Activar' }}
+                </button>
+                <button
+                    *ngIf="item.status === 'ACTIVE'"
+                    mat-stroked-button
+                    type="button"
+                    (click)="pause()"
+                    [disabled]="processing">
+                    <mat-icon>pause</mat-icon>
+                    Pausar
+                </button>
+                <button
+                    *ngIf="item.status !== 'CLOSED'
+                        && item.status !== 'PENDING_DELETION'
+                        && item.status !== 'DELETED'"
+                    mat-button
+                    type="button"
+                    class="danger-action"
+                    (click)="close()"
+                    [disabled]="processing">
+                    Cerrar
+                </button>
+                <button
+                    *ngIf="item.status === 'PENDING_DELETION'"
+                    mat-stroked-button type="button" (click)="recover()"
+                    [disabled]="processing">
+                    Recuperar
+                </button>
+                <button
+                    *ngIf="item.status !== 'PENDING_DELETION' && item.status !== 'DELETED'"
+                    mat-button class="danger-action" type="button" (click)="requestDeletion()"
+                    [disabled]="processing">
+                    Eliminar
+                </button>
+            </div>
+        </header>
+
+        <section class="metadata-grid">
+            <mat-card>
+                <mat-icon>calendar_month</mat-icon>
+                <span>Fecha inicial</span>
+                <strong>{{ item.start_date | date:'dd/MM/yyyy':'UTC' }}</strong>
+            </mat-card>
+            <mat-card>
+                <mat-icon>today</mat-icon>
+                <span>Días</span>
+                <strong>{{ item.counts.days }}</strong>
+            </mat-card>
+            <mat-card>
+                <mat-icon>category</mat-icon>
+                <span>Categorías</span>
+                <strong>{{ item.counts.categories }}</strong>
+            </mat-card>
+            <mat-card>
+                <mat-icon>groups</mat-icon>
+                <span>Participantes</span>
+                <strong>{{ item.counts.gymnasts }}</strong>
+            </mat-card>
+        </section>
+
+        <section
+            *ngIf="item.status === 'DRAFT' && item.counts.days === 0"
+            class="next-step">
+            <mat-icon>upload_file</mat-icon>
+            <div>
+                <h2>Falta cargar el orden de paso</h2>
+                <p>
+                    El Excel se analizará antes de crear días, categorías y
+                    gimnastas. Podrás revisar y corregir el corte AM/PM.
+                </p>
+            </div>
+            <a
+                mat-flat-button
+                color="primary"
+                [routerLink]="['/championships', item.id, 'import']">
+                Continuar importación
+            </a>
+        </section>
+
+        <section *ngIf="competitionDays.length" class="days-section">
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">Orden confirmado</span>
+                    <h2>Días de competencia</h2>
+                </div>
+            </div>
+            <div class="days-grid">
+                <mat-card *ngFor="let day of competitionDays">
+                    <span>Día {{ day.sequence }}</span>
+                    <strong>{{ day.date | date:'EEEE d MMMM':'UTC':'es-CL' }}</strong>
+                    <small>Hoja: {{ day.sheet_name }}</small>
+                </mat-card>
+            </div>
+        </section>
+
+        <section
+            *ngIf="item.counts.days > 0 && item.status === 'DRAFT'"
+            class="information-note">
+            <mat-icon>info</mat-icon>
+            <p>
+                El orden de paso ya está confirmado. Puedes activar el
+                campeonato o continuar con la configuración de jueces en el
+                siguiente bloque operativo.
+            </p>
+        </section>
+    </ng-container>
+</main>

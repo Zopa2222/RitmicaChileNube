@@ -1,0 +1,275 @@
+<main class="public-page">
+    <header class="topbar">
+        <a routerLink="/" class="brand" aria-label="Ir al inicio">
+            <img src="assets/logo.jpeg" alt="" class="brand-logo">
+            <span>
+                <strong>Rítmica Chile</strong>
+                <small>Resultados oficiales</small>
+            </span>
+        </a>
+        <a routerLink="/" class="admin-link">Administración</a>
+    </header>
+
+    <section
+        *ngIf="catalog as currentCatalog"
+        class="championship-hero"
+        aria-labelledby="championship-title"
+    >
+        <div>
+            <p class="eyebrow">Campeonato activo</p>
+            <h1 id="championship-title">
+                {{ currentCatalog.championship.name }}
+            </h1>
+            <p class="championship-meta">
+                {{ currentCatalog.championship.kind }} ·
+                {{ currentCatalog.championship.zone }} ·
+                {{ currentCatalog.championship.start_date | date:'dd/MM/yyyy' }}
+            </p>
+        </div>
+        <button
+            type="button"
+            class="refresh-button"
+            (click)="refresh()"
+            [disabled]="loadingCatalog"
+        >
+            <span aria-hidden="true">↻</span>
+            Actualizar
+        </button>
+    </section>
+
+    <section
+        *ngIf="catalog"
+        class="search-panel"
+        aria-label="Buscar resultados"
+    >
+        <label for="public-search">Buscar categoría o gimnasta</label>
+        <div class="search-field">
+            <span aria-hidden="true">⌕</span>
+            <input
+                id="public-search"
+                type="search"
+                [formControl]="searchControl"
+                placeholder="Ej. Junior, Martina o nombre del club"
+                autocomplete="off"
+            >
+            <button
+                *ngIf="searchControl.value"
+                type="button"
+                class="clear-button"
+                (click)="clearSearch()"
+                aria-label="Limpiar búsqueda"
+            >
+                ×
+            </button>
+        </div>
+    </section>
+
+    <section
+        *ngIf="loadingCatalog && !catalog"
+        class="state-panel"
+        aria-live="polite"
+    >
+        <span class="loader" aria-hidden="true"></span>
+        <h1>Cargando resultados</h1>
+        <p>Estamos consultando el campeonato activo.</p>
+    </section>
+
+    <section
+        *ngIf="noActiveChampionship"
+        class="state-panel"
+        aria-live="polite"
+    >
+        <span class="state-icon" aria-hidden="true">◇</span>
+        <h1>No hay un campeonato activo</h1>
+        <p>Los resultados aparecerán aquí cuando comience el próximo evento.</p>
+        <button type="button" class="primary-button" (click)="refresh()">
+            Volver a consultar
+        </button>
+    </section>
+
+    <section
+        *ngIf="errorMessage && !catalog"
+        class="state-panel error-state"
+        aria-live="assertive"
+    >
+        <span class="state-icon" aria-hidden="true">!</span>
+        <h1>No pudimos cargar los resultados</h1>
+        <p>{{ errorMessage }}</p>
+        <button type="button" class="primary-button" (click)="refresh()">
+            Reintentar
+        </button>
+    </section>
+
+    <div *ngIf="catalog" class="results-layout">
+        <aside class="category-panel" aria-label="Categorías">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Programa</p>
+                    <h2>Categorías</h2>
+                </div>
+                <span class="category-count">{{ categories.length }}</span>
+            </div>
+
+            <nav *ngIf="categories.length; else noCategories">
+                <button
+                    *ngFor="let category of categories; trackBy: categoryTrackBy"
+                    type="button"
+                    class="category-item"
+                    [class.selected]="selectedCategory?.id === category.id"
+                    [attr.aria-pressed]="selectedCategory?.id === category.id"
+                    (click)="selectCategory(category)"
+                >
+                    <span class="category-main">
+                        <strong>{{ category.name }}</strong>
+                        <small>
+                            Día {{ category.competition_day.sequence }} ·
+                            Banca {{ category.bench }} · {{ category.session }}
+                        </small>
+                    </span>
+                    <span class="participant-count">
+                        {{ category.gymnast_count }}
+                    </span>
+                </button>
+            </nav>
+
+            <ng-template #noCategories>
+                <div class="empty-categories">
+                    <p>No encontramos categorías con esa búsqueda.</p>
+                    <button
+                        *ngIf="searchControl.value"
+                        type="button"
+                        (click)="clearSearch()"
+                    >
+                        Limpiar búsqueda
+                    </button>
+                </div>
+            </ng-template>
+        </aside>
+
+        <section class="result-panel" aria-live="polite">
+            <ng-container *ngIf="selectedCategory; else chooseCategory">
+                <div class="result-heading">
+                    <div>
+                        <p class="eyebrow">
+                            Banca {{ selectedCategory.bench }} ·
+                            {{ selectedCategory.session }}
+                        </p>
+                        <h2>{{ selectedCategory.name }}</h2>
+                        <p
+                            *ngIf="categoryResults?.publication as publication"
+                            class="publication-time"
+                        >
+                            Publicado el
+                            {{ publication.published_at | date:'dd/MM/yyyy HH:mm' }}
+                        </p>
+                        <p
+                            *ngIf="categoryResults && !categoryResults.publication"
+                            class="publication-time"
+                        >
+                            Esta categoría aún no tiene una publicación.
+                        </p>
+                    </div>
+                    <label class="sort-control">
+                        <span>Ordenar por</span>
+                        <select
+                            [value]="sortMode"
+                            (change)="changeSort($event)"
+                        >
+                            <option value="passing_order">Orden de paso</option>
+                            <option value="score">Puntaje</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div *ngIf="loadingResults" class="inline-loading">
+                    <span class="loader" aria-hidden="true"></span>
+                    Actualizando categoría…
+                </div>
+
+                <ng-container *ngIf="!loadingResults && categoryResults">
+                    <div
+                        *ngIf="categoryResults.results.length; else noResults"
+                        class="result-table"
+                        role="table"
+                        aria-label="Resultados de la categoría"
+                    >
+                        <div class="table-row table-header" role="row">
+                            <span role="columnheader">Posición</span>
+                            <span role="columnheader">Gimnasta</span>
+                            <span role="columnheader">Club</span>
+                            <span role="columnheader">Puntaje</span>
+                        </div>
+                        <div
+                            *ngFor="
+                                let result of categoryResults.results;
+                                trackBy: resultTrackBy
+                            "
+                            class="table-row"
+                            [class.unpublished]="!result.is_published"
+                            role="row"
+                        >
+                            <span
+                                class="position-cell"
+                                role="cell"
+                                data-label="Posición"
+                            >
+                                {{ result.display_position }}
+                            </span>
+                            <span
+                                class="gymnast-cell"
+                                role="cell"
+                                data-label="Gimnasta"
+                            >
+                                <strong>{{ result.display_name }}</strong>
+                                <small *ngIf="!result.is_published">
+                                    Aún no publicado
+                                </small>
+                            </span>
+                            <span
+                                class="club-cell"
+                                role="cell"
+                                data-label="Club"
+                            >
+                                {{ result.club_name || '—' }}
+                            </span>
+                            <span
+                                class="score-cell"
+                                role="cell"
+                                data-label="Puntaje"
+                            >
+                                {{ result.total_score }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <ng-template #noResults>
+                        <div class="empty-results">
+                            <span aria-hidden="true">⌕</span>
+                            <h3>No hay gimnastas para mostrar</h3>
+                            <p *ngIf="searchControl.value">
+                                Prueba con otro nombre o limpia la búsqueda.
+                            </p>
+                        </div>
+                    </ng-template>
+                </ng-container>
+
+                <p *ngIf="errorMessage && catalog" class="inline-error">
+                    {{ errorMessage }}
+                </p>
+            </ng-container>
+
+            <ng-template #chooseCategory>
+                <div class="empty-results">
+                    <span aria-hidden="true">◇</span>
+                    <h3>Selecciona una categoría</h3>
+                    <p>Sus resultados aparecerán en este espacio.</p>
+                </div>
+            </ng-template>
+        </section>
+    </div>
+
+    <footer *ngIf="catalog" class="public-footer">
+        <span>Resultados publicados oficialmente por Rítmica Chile.</span>
+        <span>Las notas individuales de los jueces son privadas.</span>
+    </footer>
+</main>

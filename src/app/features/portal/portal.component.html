@@ -1,0 +1,76 @@
+<main class="portal" *ngIf="user$ | async as user">
+    <section class="welcome">
+        <span class="eyebrow">
+            <mat-icon>
+                {{ user.account_type === 'JUDGE' ? 'scoreboard' : 'cloud_done' }}
+            </mat-icon>
+            Sesión cloud protegida
+        </span>
+        <h1>
+            Hola, {{ user.first_name }}
+        </h1>
+        <p *ngIf="user.account_type === 'GLOBAL_ADMIN'">
+            Desde aquí puedes administrar el campeonato activo y preparar los
+            siguientes eventos.
+        </p>
+        <p *ngIf="user.account_type === 'SUPER_ADMIN'">
+            Puedes supervisar campeonatos y acceder a las funciones globales
+            del sistema.
+        </p>
+        <p *ngIf="user.account_type === 'JUDGE'">
+            Tu identidad y ventana de acceso fueron verificadas. La cabina
+            mostrará únicamente la gimnasta activa correspondiente.
+        </p>
+    </section>
+
+    <section
+        class="portal-grid"
+        *ngIf="user.account_type !== 'JUDGE'; else judgePortal">
+        <mat-card>
+            <mat-icon>emoji_events</mat-icon>
+            <h2>Campeonatos</h2>
+            <p>Consulta los campeonatos disponibles y continúa su operación.</p>
+            <a mat-flat-button color="primary" routerLink="/championships">
+                Abrir campeonatos
+            </a>
+        </mat-card>
+
+        <mat-card *ngIf="user.account_type === 'SUPER_ADMIN'">
+            <mat-icon>admin_panel_settings</mat-icon>
+            <h2>Control global</h2>
+            <p>Administra jueces, credenciales y logs operativos.</p>
+            <a mat-stroked-button color="primary" routerLink="/superadministracion">
+                Abrir superadministración
+            </a>
+        </mat-card>
+
+        <mat-card>
+            <mat-icon>add_circle</mat-icon>
+            <h2>Nuevo campeonato</h2>
+            <p>Comienza la configuración y carga del orden de paso.</p>
+            <a mat-stroked-button color="primary" routerLink="/setup">
+                Crear campeonato
+            </a>
+        </mat-card>
+
+        <mat-card>
+            <mat-icon>leaderboard</mat-icon>
+            <h2>Vista pública</h2>
+            <p>Revisa exactamente lo que pueden consultar los espectadores.</p>
+            <a mat-stroked-button routerLink="/resultados">
+                Ver resultados
+            </a>
+        </mat-card>
+    </section>
+
+    <ng-template #judgePortal>
+        <section class="judge-status" role="status">
+            <mat-icon>verified_user</mat-icon>
+            <div>
+                <h2>Acceso de juez habilitado</h2>
+                <p>Solo se mostrarán tus asignaciones y la gimnasta activa.</p>
+                <a mat-flat-button color="primary" routerLink="/cabina-juez">Abrir cabina</a>
+            </div>
+        </section>
+    </ng-template>
+</main>

@@ -1,87 +1,165 @@
-<div class="championships-container">
-    <div class="header">
-        <div class="header-left">
-            <img src="assets/logo.jpeg" alt="Ritmica Chile" class="header-logo">
-            <div>
-                <span class="header-institution">Ritmica Chile</span>
-                <h1>
-                    Campeonatos Existentes
-                </h1>
-            </div>
+<main class="championships-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">Administración cloud</span>
+            <h1>Campeonatos</h1>
+            <p>
+                Solo uno puede permanecer activo y visible públicamente.
+            </p>
         </div>
-        <button mat-icon-button color="primary" (click)="goHome()" matTooltip="Volver al inicio">
-            <mat-icon>home</mat-icon>
-        </button>
-    </div>
+        <a mat-flat-button color="primary" routerLink="/setup">
+            <mat-icon>add</mat-icon>
+            Nuevo campeonato
+        </a>
+    </header>
 
-    <div class="search-container">
-        <mat-form-field class="search-field" appearance="outline" subscriptSizing="dynamic">
+    <section
+        class="active-summary"
+        *ngIf="activeChampionship as active">
+        <mat-icon>radio_button_checked</mat-icon>
+        <div>
+            <span>Campeonato activo</span>
+            <strong>{{ active.name }}</strong>
+        </div>
+        <a
+            mat-stroked-button
+            [routerLink]="['/championships', active.id]">
+            Ver operación
+        </a>
+    </section>
+
+    <section class="toolbar">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-icon matPrefix>search</mat-icon>
-            <input matInput [(ngModel)]="searchTerm" (input)="filterChampionships()"
-                placeholder="Buscar campeonato por nombre...">
+            <mat-label>Buscar campeonato</mat-label>
+            <input
+                matInput
+                [(ngModel)]="searchTerm"
+                (ngModelChange)="filterChampionships()"
+                placeholder="Nombre, zona, tipo o estado">
         </mat-form-field>
-    </div>
+        <button
+            mat-icon-button
+            type="button"
+            aria-label="Actualizar campeonatos"
+            (click)="loadChampionships()"
+            [disabled]="loading">
+            <mat-icon>refresh</mat-icon>
+        </button>
+    </section>
 
-    <div *ngIf="loading" class="loading-container">
-        <mat-spinner></mat-spinner>
-    </div>
+    <section *ngIf="loading" class="state-panel" aria-live="polite">
+        <mat-spinner diameter="44"></mat-spinner>
+        <p>Cargando campeonatos…</p>
+    </section>
 
-    <div *ngIf="!loading && filteredChampionships.length === 0" class="no-results">
-        <mat-icon>info</mat-icon>
-        <p *ngIf="searchTerm">No se encontraron campeonatos que coincidan con "{{ searchTerm }}"</p>
-        <p *ngIf="!searchTerm">No hay campeonatos creados aún</p>
-    </div>
+    <section *ngIf="!loading && loadError" class="state-panel error">
+        <mat-icon>cloud_off</mat-icon>
+        <h2>No pudimos cargar los campeonatos</h2>
+        <p>{{ loadError }}</p>
+        <button mat-stroked-button type="button" (click)="loadChampionships()">
+            Reintentar
+        </button>
+    </section>
 
-    <div class="championships-grid">
-        <mat-card *ngFor="let championship of filteredChampionships" class="championship-card">
+    <section
+        *ngIf="!loading && !loadError && filteredChampionships.length === 0"
+        class="state-panel">
+        <mat-icon>emoji_events</mat-icon>
+        <h2>
+            {{ searchTerm ? 'No encontramos coincidencias' : 'Aún no hay campeonatos' }}
+        </h2>
+        <p *ngIf="!searchTerm">
+            Crea el primer borrador y carga su orden de paso.
+        </p>
+        <a
+            *ngIf="!searchTerm"
+            mat-flat-button
+            color="primary"
+            routerLink="/setup">
+            Crear campeonato
+        </a>
+    </section>
+
+    <section
+        class="championship-grid"
+        *ngIf="!loading && !loadError && filteredChampionships.length">
+        <mat-card
+            *ngFor="let championship of filteredChampionships"
+            class="championship-card"
+            [class.active-card]="championship.status === 'ACTIVE'">
             <mat-card-header>
-                <mat-card-title>{{ championship.nombre }}</mat-card-title>
+                <div class="card-heading">
+                    <span
+                        class="status"
+                        [class]="'status ' + championship.status.toLowerCase()">
+                        {{ statusLabel(championship.status) }}
+                    </span>
+                    <mat-card-title>{{ championship.name }}</mat-card-title>
+                </div>
             </mat-card-header>
 
             <mat-card-content>
-                <div class="info-row summary-row">
-                    <div class="info-item">
-                        <mat-icon>category</mat-icon>
-                        <span>{{ championship.categorias.length }} categoría{{ championship.categorias.length !== 1 ? 's' : '' }}</span>
+                <dl>
+                    <div>
+                        <dt>Tipo</dt>
+                        <dd>{{ championship.kind }}</dd>
                     </div>
-                    <div class="info-item" *ngIf="championship.created_at">
-                        <mat-icon>calendar_today</mat-icon>
-                        <span>{{ formatDate(championship.created_at) }}</span>
+                    <div>
+                        <dt>Zona</dt>
+                        <dd>{{ championship.zone }}</dd>
                     </div>
-                </div>
-
-                <!-- Judges info -->
-                <div class="judges-section" *ngIf="championship.jueces && championship.jueces.length > 0">
-                    <div class="section-header">
-                        <mat-icon>gavel</mat-icon>
-                        <span>Jueces ({{ championship.jueces.length }})</span>
+                    <div>
+                        <dt>Fecha inicial</dt>
+                        <dd>{{ championship.start_date | date:'dd/MM/yyyy':'UTC' }}</dd>
                     </div>
-                    <div class="judges-table">
-                        <div class="judge-row" *ngFor="let juez of championship.jueces">
-                            <span class="judge-name">{{ juez.nombre }}</span>
-                            <span class="judge-role">{{ getJudgeRoleDescription(juez) }}</span>
-                        </div>
-                    </div>
-                </div>
-
-
+                </dl>
             </mat-card-content>
 
             <mat-card-actions>
-                <button mat-raised-button color="primary" (click)="downloadExcel(championship)">
-                    <mat-icon>download</mat-icon>
-                    Descargar Excel
+                <a
+                    mat-stroked-button
+                    [routerLink]="['/championships', championship.id]">
+                    <mat-icon>visibility</mat-icon>
+                    Ver detalle
+                </a>
+
+                <button
+                    *ngIf="championship.status === 'DRAFT'
+                        || championship.status === 'PAUSED'"
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    (click)="activate(championship)"
+                    [disabled]="actionId !== null">
+                    <mat-icon>
+                        {{ championship.status === 'PAUSED' ? 'play_arrow' : 'rocket_launch' }}
+                    </mat-icon>
+                    {{ championship.status === 'PAUSED' ? 'Reanudar' : 'Activar' }}
                 </button>
-                <button mat-raised-button color="accent" (click)="downloadPdf(championship)">
-                    <mat-icon>picture_as_pdf</mat-icon>
-                    Descargar PDF
+
+                <button
+                    *ngIf="championship.status === 'ACTIVE'"
+                    mat-stroked-button
+                    type="button"
+                    (click)="pause(championship)"
+                    [disabled]="actionId !== null">
+                    <mat-icon>pause</mat-icon>
+                    Pausar
                 </button>
-                <button mat-stroked-button class="edit-btn" (click)="editChampionship(championship)"
-                    matTooltip="Editar puntajes del campeonato">
-                    <mat-icon>edit</mat-icon>
-                    Editar
+
+                <button
+                    *ngIf="championship.status !== 'CLOSED'
+                        && championship.status !== 'PENDING_DELETION'
+                        && championship.status !== 'DELETED'"
+                    mat-button
+                    class="danger-action"
+                    type="button"
+                    (click)="close(championship)"
+                    [disabled]="actionId !== null">
+                    Cerrar
                 </button>
             </mat-card-actions>
         </mat-card>
-    </div>
-</div>
+    </section>
+</main>

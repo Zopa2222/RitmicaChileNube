@@ -1,0 +1,143 @@
+.login-page {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
+    padding: 6rem 1.25rem 2rem;
+    background:
+        linear-gradient(160deg, #f8fafc 0%, #eef2ff 52%, #ecfeff 100%);
+}
+
+.brand {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: #1e293b;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.brand img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: var(--shadow-md);
+}
+
+.login-card {
+    width: min(100%, 460px);
+    z-index: 1;
+    padding: 1.5rem;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: var(--shadow-xl);
+}
+
+mat-card-header {
+    margin-bottom: 1.75rem;
+}
+
+mat-card-title {
+    color: #1e293b;
+    font-size: 1.8rem;
+    font-weight: 800;
+}
+
+mat-card-subtitle {
+    margin-top: 0.4rem;
+    color: #64748b;
+}
+
+form {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.notice,
+.error-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    line-height: 1.4;
+}
+
+.notice {
+    color: #3730a3;
+    background: #eef2ff;
+}
+
+.error-message {
+    color: #991b1b;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.error-message div {
+    display: grid;
+    gap: 0.3rem;
+}
+
+.error-message span {
+    font-size: 0.9rem;
+}
+
+.submit-button {
+    width: 100%;
+    display: inline-flex;
+    gap: 0.6rem;
+    margin-top: 0.25rem;
+}
+
+mat-card-actions {
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.background-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(70px);
+    opacity: 0.35;
+}
+
+.orb-one {
+    width: 420px;
+    height: 420px;
+    top: -160px;
+    right: -100px;
+    background: #818cf8;
+}
+
+.orb-two {
+    width: 360px;
+    height: 360px;
+    bottom: -160px;
+    left: -100px;
+    background: #22d3ee;
+}
+
+@media (max-width: 560px) {
+    .login-page {
+        align-items: start;
+        padding-top: 6.5rem;
+    }
+
+    .brand {
+        top: 1rem;
+        left: 1rem;
+    }
+
+    .login-card {
+        padding: 1rem;
+    }
+}

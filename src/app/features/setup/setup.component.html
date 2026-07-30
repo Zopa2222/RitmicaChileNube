@@ -1,161 +1,376 @@
-<div class="setup-container">
-  <!-- Institution Header -->
-  <div class="institution-top-bar">
-    <img src="assets/logo.jpeg" alt="Ritmica Chile Logo" class="top-logo">
-    <span class="top-institution-name">Ritmica Chile</span>
-  </div>
-  <mat-card class="setup-card">
-    <mat-card-header>
-      <mat-card-title>Configuración del Campeonato</mat-card-title>
-      <mat-card-subtitle>Ingrese los datos del campeonato y suba el orden de paso</mat-card-subtitle>
-    </mat-card-header>
+<main class="setup-page">
+    <a mat-button routerLink="/championships" class="back-link">
+        <mat-icon>arrow_back</mat-icon>
+        Volver a campeonatos
+    </a>
 
-    <mat-card-content>
-      <form [formGroup]="setupForm" (ngSubmit)="onSubmit()">
-        <!-- Championship Name -->
-        <mat-form-field appearance="outline" class="full-width" floatLabel="always">
-          <mat-label>Nombre del Campeonato</mat-label>
-          <input matInput formControlName="championshipName" placeholder="Ej: Copa Primavera 2026">
-        </mat-form-field>
+    <header class="page-header">
+        <span class="eyebrow">Nuevo campeonato</span>
+        <h1>
+            {{ championship ? 'Importar orden de paso' : 'Crear campeonato' }}
+        </h1>
+        <p>
+            Los datos no se incorporan a la competencia hasta confirmar la
+            previsualización del Excel.
+        </p>
+    </header>
 
-        <!-- Excel File Upload -->
-        <div class="file-upload-section">
-          <h3>Orden de Paso (Excel)</h3>
-          <div class="file-upload-area" (click)="fileInput.click()">
-            <mat-icon>cloud_upload</mat-icon>
-            <p *ngIf="!fileName">Click para seleccionar archivo Excel</p>
-            <p *ngIf="fileName" class="file-name">{{ fileName }}</p>
-            <input #fileInput type="file" accept=".xlsx,.xls" (change)="onFileSelected($event)" hidden>
-          </div>
+    <nav class="steps" aria-label="Progreso de creación">
+        <div [class.complete]="championship">
+            <span>1</span>
+            <strong>Datos generales</strong>
         </div>
+        <div [class.active]="championship && !preview" [class.complete]="preview">
+            <span>2</span>
+            <strong>Cargar Excel</strong>
+        </div>
+        <div [class.active]="preview">
+            <span>3</span>
+            <strong>Revisar y confirmar</strong>
+        </div>
+    </nav>
 
-        <!-- Judges Section — Banca A -->
-        <div class="judges-section">
-          <div class="banca-block">
-            <div class="section-header">
-              <div class="banca-title">
-                <span class="banca-badge banca-a">A</span>
-                <h3>Banca A</h3>
-              </div>
-              <button mat-raised-button color="primary" type="button" (click)="addJudge('A')">
-                <mat-icon>add</mat-icon>
-                Agregar Juez
-              </button>
+    <section *ngIf="pageLoading" class="state-panel">
+        <mat-spinner diameter="44"></mat-spinner>
+        <p>Cargando borrador…</p>
+    </section>
+
+    <section *ngIf="!pageLoading && !championship" class="creation-layout">
+        <mat-card class="form-card">
+            <mat-card-header>
+                <mat-card-title>Datos del campeonato</mat-card-title>
+                <mat-card-subtitle>
+                    Todos los campeonatos pertenecen a Rítmica Chile.
+                </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+                <form
+                    [formGroup]="championshipForm"
+                    (ngSubmit)="createChampionship()">
+                    <mat-form-field appearance="outline">
+                        <mat-label>Nombre</mat-label>
+                        <input
+                            matInput
+                            formControlName="name"
+                            placeholder="Clasificatorio Zona Centro 2026">
+                        <mat-error>Ingresa el nombre del campeonato</mat-error>
+                    </mat-form-field>
+
+                    <div class="form-row">
+                        <mat-form-field appearance="outline">
+                            <mat-label>Tipo</mat-label>
+                            <mat-select formControlName="kind">
+                                <mat-option value="CLASIFICATORIO">
+                                    Clasificatorio
+                                </mat-option>
+                                <mat-option value="FINAL">Final</mat-option>
+                            </mat-select>
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline">
+                            <mat-label>Zona</mat-label>
+                            <input
+                                matInput
+                                formControlName="zone"
+                                placeholder="Centro, Norte, Sur…">
+                            <mat-error>Ingresa la zona</mat-error>
+                        </mat-form-field>
+                    </div>
+
+                    <mat-form-field appearance="outline">
+                        <mat-label>Fecha inicial</mat-label>
+                        <input
+                            matInput
+                            type="date"
+                            formControlName="start_date">
+                        <mat-hint>
+                            Cada hoja siguiente corresponde al día siguiente.
+                        </mat-hint>
+                        <mat-error>Selecciona la fecha inicial</mat-error>
+                    </mat-form-field>
+
+                    <div *ngIf="errorMessage" class="error-message" role="alert">
+                        <mat-icon>error_outline</mat-icon>
+                        {{ errorMessage }}
+                    </div>
+
+                    <button
+                        mat-flat-button
+                        color="primary"
+                        type="submit"
+                        [disabled]="loading">
+                        <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
+                        <mat-icon *ngIf="!loading">arrow_forward</mat-icon>
+                        Crear borrador y continuar
+                    </button>
+                </form>
+            </mat-card-content>
+        </mat-card>
+
+        <aside class="help-card">
+            <mat-icon>verified</mat-icon>
+            <h2>Qué ocurrirá después</h2>
+            <ol>
+                <li>El Excel se analiza sin alterar el campeonato.</li>
+                <li>Revisas bancas, jornadas, categorías y participantes.</li>
+                <li>Confirmas o corriges cada corte AM/PM.</li>
+                <li>Solo entonces se guarda el orden de paso.</li>
+            </ol>
+        </aside>
+    </section>
+
+    <section
+        *ngIf="!pageLoading && championship && !preview"
+        class="upload-section">
+        <mat-card>
+            <div class="draft-summary">
+                <span>Borrador creado</span>
+                <h2>{{ championship.name }}</h2>
+                <p>
+                    {{ championship.kind }} · Zona {{ championship.zone }} ·
+                    {{ championship.start_date | date:'dd/MM/yyyy':'UTC' }}
+                </p>
             </div>
 
-            <div formArrayName="bancaA" class="judges-list">
-              <div *ngFor="let judge of bancaA.controls; let i = index" [formGroupName]="i" class="judge-row">
-                <mat-form-field appearance="outline" class="judge-name">
-                  <mat-label>Nombre del Juez</mat-label>
-                  <input matInput formControlName="name" placeholder="Nombre completo">
-                </mat-form-field>
+            <label class="upload-box" for="excel-file">
+                <mat-icon>{{ selectedFile ? 'description' : 'cloud_upload' }}</mat-icon>
+                <strong>
+                    {{ selectedFile?.name || 'Seleccionar orden de paso' }}
+                </strong>
+                <span>
+                    Archivo .xlsx de hasta 16 MB. Cada hoja representa un día.
+                </span>
+                <input
+                    id="excel-file"
+                    type="file"
+                    accept=".xlsx"
+                    (change)="selectFile($event)">
+            </label>
 
-                <mat-form-field appearance="outline" class="judge-role">
-                  <mat-label>Rol AM</mat-label>
-                  <mat-select formControlName="roleAM">
-                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
-                      {{ roleLabels[role] || role }}
-                    </mat-option>
-                  </mat-select>
-                </mat-form-field>
+            <div *ngIf="errorMessage" class="error-message" role="alert">
+                <mat-icon>error_outline</mat-icon>
+                {{ errorMessage }}
+            </div>
 
-                <mat-form-field appearance="outline" class="judge-role">
-                  <mat-label>Rol PM</mat-label>
-                  <mat-select formControlName="rolePM">
-                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
-                      {{ roleLabels[role] || role }}
-                    </mat-option>
-                  </mat-select>
-                </mat-form-field>
-
-                <button mat-icon-button color="warn" type="button" (click)="removeJudge('A', i)"
-                  matTooltip="Eliminar juez">
-                  <mat-icon>delete</mat-icon>
+            <div class="upload-actions">
+                <button
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    (click)="uploadExcel()"
+                    [disabled]="!selectedFile || loading">
+                    <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
+                    <mat-icon *ngIf="!loading">analytics</mat-icon>
+                    Analizar archivo
                 </button>
-              </div>
             </div>
-          </div>
+        </mat-card>
+    </section>
 
-          <!-- Judges Section — Banca B -->
-          <div class="banca-block">
-            <div class="section-header">
-              <div class="banca-title">
-                <span class="banca-badge banca-b">B</span>
-                <h3>Banca B</h3>
-              </div>
-              <button mat-raised-button color="primary" type="button" (click)="addJudge('B')">
-                <mat-icon>add</mat-icon>
-                Agregar Juez
-              </button>
-            </div>
-
-            <div formArrayName="bancaB" class="judges-list">
-              <div *ngFor="let judge of bancaB.controls; let i = index" [formGroupName]="i" class="judge-row">
-                <mat-form-field appearance="outline" class="judge-name">
-                  <mat-label>Nombre del Juez</mat-label>
-                  <input matInput formControlName="name" placeholder="Nombre completo">
-                </mat-form-field>
-
-                <mat-form-field appearance="outline" class="judge-role">
-                  <mat-label>Rol AM</mat-label>
-                  <mat-select formControlName="roleAM">
-                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
-                      {{ roleLabels[role] || role }}
-                    </mat-option>
-                  </mat-select>
-                </mat-form-field>
-
-                <mat-form-field appearance="outline" class="judge-role">
-                  <mat-label>Rol PM</mat-label>
-                  <mat-select formControlName="rolePM">
-                    <mat-option *ngFor="let role of judgeRoles" [value]="role">
-                      {{ roleLabels[role] || role }}
-                    </mat-option>
-                  </mat-select>
-                </mat-form-field>
-
-                <button mat-icon-button color="warn" type="button" (click)="removeJudge('B', i)"
-                  matTooltip="Eliminar juez">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Judge Rules -->
-          <div class="judge-rules">
-            <p><strong>Reglas de Jueces (por banca + jornada):</strong></p>
-            <ul>
-              <li>DA: 1–2 jueces (1 nota de dificultad)</li>
-              <li>DB: 1–2 jueces (1 nota de dificultad)</li>
-              <li>E: 1–4 jueces (ejecución)</li>
-              <li>A: 1–4 jueces (artístico)</li>
-              <li>L: 0 o más (línea — no genera columna, se suma en Desc)</li>
-              <li>P: 0–2 (planilla — solo registro)</li>
-              <li>Un juez puede tener rol AM, PM, o ambos</li>
-            </ul>
-          </div>
+    <section *ngIf="preview && championship" class="preview-section">
+        <div class="preview-summary">
+            <mat-card>
+                <span>Días</span>
+                <strong>{{ preview.preview.total_days }}</strong>
+            </mat-card>
+            <mat-card>
+                <span>Categorías</span>
+                <strong>{{ preview.preview.total_categories }}</strong>
+            </mat-card>
+            <mat-card>
+                <span>Participantes</span>
+                <strong>{{ preview.preview.total_gymnasts }}</strong>
+            </mat-card>
+            <mat-card>
+                <span>Expira</span>
+                <strong>{{ preview.expires_at | date:'dd/MM HH:mm' }}</strong>
+            </mat-card>
         </div>
 
-        <!-- Error Message -->
-        <div *ngIf="error" class="error-message">
-          <mat-icon>error</mat-icon>
-          <span>{{ error }}</span>
+        <div class="preview-toolbar">
+            <div>
+                <h2>Revisión por hoja</h2>
+                <p>
+                    Cada corte confirmado separa AM de PM. Las categorías no
+                    pueden dividirse entre ambos tramos.
+                </p>
+            </div>
+            <button
+                mat-stroked-button
+                color="primary"
+                type="button"
+                (click)="acceptDetectedCutoffs()"
+                [disabled]="loading">
+                <mat-icon>done_all</mat-icon>
+                Aceptar cortes detectados
+            </button>
         </div>
 
-        <!-- Submit Button -->
-        <div class="actions" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <button mat-stroked-button color="warn" type="button" (click)="goHome()">
-            <mat-icon>home</mat-icon>
-            Menú Principal
-          </button>
-          <button mat-raised-button color="primary" type="submit" [disabled]="loading">
-            <mat-icon *ngIf="!loading">start</mat-icon>
-            <span *ngIf="loading">Procesando...</span>
-            <span *ngIf="!loading">Iniciar Campeonato</span>
-          </button>
+        <article
+            *ngFor="let sheet of preview.preview.sheets"
+            class="sheet-card"
+            [class.confirmed]="sheet.cutoff_confirmed">
+            <header>
+                <div>
+                    <span>Día {{ sheet.sequence }}</span>
+                    <h3>{{ sheet.name }}</h3>
+                </div>
+                <span class="confirmation-state">
+                    <mat-icon>
+                        {{ sheet.cutoff_confirmed ? 'check_circle' : 'pending' }}
+                    </mat-icon>
+                    {{ sheet.cutoff_confirmed ? 'Corte confirmado' : 'Revisión pendiente' }}
+                </span>
+            </header>
+
+            <div
+                class="detection"
+                [class.warning]="sheet.requires_manual_decision">
+                <mat-icon>
+                    {{ sheet.requires_manual_decision ? 'warning' : 'auto_awesome' }}
+                </mat-icon>
+                <div *ngIf="sheet.detected_cutoff_row; else noDetection">
+                    <strong>
+                        Corte sugerido en fila {{ sheet.detected_cutoff_row }}
+                    </strong>
+                    <p>
+                        {{ detectedMarker(sheet)?.text || 'Marcador principal detectado' }}
+                    </p>
+                </div>
+                <ng-template #noDetection>
+                    <div>
+                        <strong>No se encontró un marcador principal</strong>
+                        <p>Debes seleccionar un marcador o indicar una fila.</p>
+                    </div>
+                </ng-template>
+            </div>
+
+            <div class="sheet-layout">
+                <section class="cutoff-editor">
+                    <h4>Corte AM / PM</h4>
+                    <mat-form-field appearance="outline">
+                        <mat-label>Marcador o fila</mat-label>
+                        <mat-select
+                            [value]="cutoffOptions[sheet.sequence]"
+                            (selectionChange)="optionChanged(sheet, $event.value)">
+                            <mat-option
+                                *ngFor="let marker of eligibleMarkers(sheet)"
+                                [value]="marker.row">
+                                Fila {{ marker.row }} — {{ marker.text }}
+                            </mat-option>
+                            <mat-option value="MANUAL">
+                                Indicar fila manualmente
+                            </mat-option>
+                        </mat-select>
+                    </mat-form-field>
+
+                    <mat-form-field
+                        *ngIf="cutoffOptions[sheet.sequence] === 'MANUAL'"
+                        appearance="outline">
+                        <mat-label>Primera fila del tramo PM</mat-label>
+                        <input
+                            matInput
+                            type="number"
+                            min="1"
+                            [max]="sheet.max_content_row + 1"
+                            [value]="manualRows[sheet.sequence] || ''"
+                            (input)="manualRows[sheet.sequence] =
+                                $any($event.target).valueAsNumber">
+                        <mat-hint>
+                            Entre 1 y {{ sheet.max_content_row + 1 }}
+                        </mat-hint>
+                    </mat-form-field>
+
+                    <button
+                        mat-flat-button
+                        color="primary"
+                        type="button"
+                        (click)="saveSheetCutoff(sheet)"
+                        [disabled]="savingSheet !== null">
+                        <mat-spinner
+                            *ngIf="savingSheet === sheet.sequence"
+                            diameter="20">
+                        </mat-spinner>
+                        <mat-icon *ngIf="savingSheet !== sheet.sequence">
+                            save
+                        </mat-icon>
+                        Guardar corte del día
+                    </button>
+                </section>
+
+                <section class="scope-summary">
+                    <h4>Distribución resultante</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tramo</th>
+                                <th>Categorías</th>
+                                <th>Participantes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <ng-container *ngFor="let bench of ['A', 'B']">
+                                <tr *ngFor="let session of ['AM', 'PM']">
+                                    <td>
+                                        Banca {{ bench }} · {{ session }}
+                                    </td>
+                                    <td>
+                                        {{ $any(sheet.summary)[bench][session].categories }}
+                                    </td>
+                                    <td>
+                                        {{ $any(sheet.summary)[bench][session].gymnasts }}
+                                    </td>
+                                </tr>
+                            </ng-container>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+
+            <details>
+                <summary>
+                    Ver {{ sheet.categories.length }} categorías de esta hoja
+                </summary>
+                <div class="category-list">
+                    <div *ngFor="let category of sheet.categories">
+                        <span class="bench-badge">Banca {{ category.bench }}</span>
+                        <span>{{ category.session || 'Sin jornada' }}</span>
+                        <strong>{{ category.name }}</strong>
+                        <small>
+                            {{ category.gymnast_count }}
+                            participante{{ category.gymnast_count === 1 ? '' : 's' }}
+                        </small>
+                    </div>
+                </div>
+            </details>
+        </article>
+
+        <div *ngIf="errorMessage" class="error-message" role="alert">
+            <mat-icon>error_outline</mat-icon>
+            {{ errorMessage }}
         </div>
-      </form>
-    </mat-card-content>
-  </mat-card>
-</div>
+
+        <footer class="confirmation-bar">
+            <div>
+                <strong>
+                    {{ allCutoffsConfirmed
+                        ? 'Todos los cortes están confirmados'
+                        : 'Aún existen hojas pendientes' }}
+                </strong>
+                <span>
+                    La importación sigue siendo reversible hasta confirmar.
+                </span>
+            </div>
+            <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="confirmImport()"
+                [disabled]="!allCutoffsConfirmed || loading">
+                <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
+                <mat-icon *ngIf="!loading">task_alt</mat-icon>
+                Confirmar orden de paso
+            </button>
+        </footer>
+    </section>
+</main>

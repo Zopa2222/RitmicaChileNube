@@ -1,4 +1,307 @@
-# Flask Backend API - Gymnastics Scoring System
+# Flask Backend API - Rítmica Chile
+
+## Implementación cloud en transición
+
+El backend conserva temporalmente las rutas MongoDB de la aplicación local y
+ya incorpora el modelo cloud normalizado en PostgreSQL. Los nuevos modelos
+están en `app/models`, las reglas decimales de puntaje en
+`app/services/cloud_scoring_service.py` y las migraciones en `migrations`.
+
+### Configuración local
+
+Desde la raíz del repositorio:
+
+```bash
+docker compose up --build
+docker compose exec backend flask --app run.py db upgrade
+```
+
+Sin Docker, configure `DATABASE_URL` usando `.env.example` y ejecute:
+
+```bash
+cd backend
+python -m pip install -r requirements.txt
+python -m flask --app run.py db upgrade
+python run.py
+```
+
+### Pruebas
+
+```bash
+cd backend
+python -m pytest -q
+```
+
+Las pruebas usan SQLite en memoria para validar el dominio y las restricciones
+portables. Para repetirlas contra una base PostgreSQL aislada:
+
+```bash
+TEST_DATABASE_URL=postgresql+psycopg://usuario:clave@localhost/ritmica_chile_test \
+  python -m pytest -q
+```
+
+La migración oficial apunta a PostgreSQL y debe ejecutarse en staging antes de
+desplegar rutas cloud.
+
+### Cuentas fijas y autenticación
+
+Después de aplicar la migración, configure las cuatro variables secretas y
+ejecute una sola vez:
+
+```bash
+flask --app run.py bootstrap-fixed-users
+```
+
+Variables requeridas:
+
+- `SUPER_ADMIN_USERNAME`
+- `SUPER_ADMIN_PASSWORD`
+- `GLOBAL_ADMIN_USERNAME`
+- `GLOBAL_ADMIN_PASSWORD`
+
+El login cloud está en `POST /api/v1/auth/login`. La sesión se guarda en una
+cookie HttpOnly y las escrituras autenticadas requieren el encabezado
+`X-CSRF-TOKEN` con el valor de la cookie `ritmica_csrf`. En producción las
+cookies son Secure y las rutas MongoDB heredadas no se registran, salvo que se
+habiliten explícitamente con `ENABLE_LEGACY_ROUTES=True`.
+
+### Campeonatos e importación cloud
+
+Las rutas de este bloque exigen sesión de superadministrador o administrador
+global:
+
+| Método | Ruta | Uso |
+| --- | --- | --- |
+| `GET` | `/api/v1/championships` | Lista campeonatos. |
+| `POST` | `/api/v1/championships` | Crea un campeonato en borrador. |
+| `GET` | `/api/v1/championships/{id}` | Entrega datos y conteos importados. |
+| `POST` | `/api/v1/championships/{id}/import-previews` | Analiza un `.xlsx` sin crear todavía días, categorías ni gimnastas. |
+| `GET` | `/api/v1/championships/{id}/import-previews/{preview_id}` | Consulta la detección y el resumen AM/PM por banca. |
+| `PATCH` | `/api/v1/championships/{id}/import-previews/{preview_id}` | Confirma los cortes detectados o define cortes manuales. |
+| `POST` | `/api/v1/championships/{id}/import-previews/{preview_id}/confirm` | Persiste el orden de paso completo en una transacción. |
+
+Ejemplo para crear el borrador:
+
+```json
+{
+  "name": "Clasificatorio Zona Centro 2026",
+  "kind": "CLASIFICATORIO",
+  "zone": "CENTRO",
+  "start_date": "2026-08-15"
+}
+```
+
+La carga usa `multipart/form-data` con el campo `file`. Si todas las hojas
+tienen un corte automático correcto, se pueden confirmar juntas enviando:
+
+```json
+{
+  "accept_detected": true
+}
+```
+
+Para corregir una hoja manualmente se envía su secuencia y la fila de
+separación; toda fila de datos anterior queda en AM y las siguientes quedan
+en PM:
+
+```json
+{
+  "sheets": [
+    {
+      "sequence": 1,
+      "cutoff_row": 92,
+      "confirmed": true
+    }
+  ]
+}
+```
+
+En desarrollo los originales se guardan localmente. En Cloud Run se configura
+`FILE_STORAGE_BACKEND=gcs` y `GCS_BUCKET` para usar un bucket privado.
+
+### Operación del campeonato, jueces y bancas
+
+| Método | Ruta | Uso |
+| --- | --- | --- |
+| `POST` | `/api/v1/championships/{id}/activate` | Activa un borrador o reanuda uno pausado. Rechaza la operación si ya existe otro activo. |
+| `POST` | `/api/v1/championships/{id}/pause` | Pausa el campeonato activo. |
+| `POST` | `/api/v1/championships/{id}/close` | Cierra el campeonato y termina sus activaciones abiertas. |
+| `GET` | `/api/v1/championships/{id}/competition-days` | Lista los días disponibles para configurar. |
+| `GET` | `/api/v1/judges?query=...` | Busca cuentas de juez por nombre, usuario o RUT. |
+| `POST` | `/api/v1/judges` | Crea una cuenta global de juez; solo superadministrador. |
+| `GET/POST` | `/api/v1/championships/{id}/judge-assignments` | Lista o crea asignaciones por día, banca, jornada y rol. |
+| `POST` | `/api/v1/championships/{id}/judge-assignments/{assignment_id}/reassign` | Reasigna el rol desde la categoría siguiente a la gimnasta activa. |
+| `GET` | `/api/v1/championships/{id}/competition-days/{day_id}/operations` | Entrega categorías, gimnastas y activación actual de ambas bancas. |
+| `PUT` | `/api/v1/championships/{id}/competition-days/{day_id}/benches/{A\|B}/active-gymnast` | Selecciona la gimnasta activa de una banca. |
+
+El administrador global puede crear una cuenta nueva solamente dentro de una
+asignación. Para ello, en vez de `judge_id`, envía:
+
+```json
+{
+  "competition_day_id": "uuid-del-dia",
+  "bench": "A",
+  "session": "AM",
+  "role": "DA",
+  "judge": {
+    "first_name": "María",
+    "last_name": "Pérez",
+    "rut": "12.345.678-5"
+  }
+}
+```
+
+La respuesta incluye la contraseña inicial una sola vez. Si el juez ya existe,
+se envía `judge_id` y no se generan nuevas credenciales. Las ventanas de acceso
+se recalculan automáticamente: 08:00–16:00 para una sola jornada y
+08:00–00:00 cuando el juez tiene AM y PM el mismo día.
+Las asignaciones iniciales se crean mientras el campeonato está en borrador;
+una vez iniciada la competencia, los cambios usan la ruta de reasignación y
+comienzan automáticamente en la categoría siguiente.
+
+El cambio de gimnasta es idempotente si se selecciona nuevamente la que ya está
+activa. Si se cambia a otra y luego se vuelve a la anterior, se crea un nuevo
+`activation_id`; de ese modo el servidor puede rechazar borradores offline
+asociados a una activación antigua.
+
+### Cabina del juez
+
+Estas rutas solo admiten una sesión de tipo `JUDGE` dentro de una ventana de
+acceso vigente. Si el login ocurre antes de la ventana, la respuesta
+`ACCESS_WINDOW_CLOSED` incluye `next_access_window` cuando existe una próxima
+habilitación en el campeonato activo:
+
+| Método | Ruta | Uso |
+| --- | --- | --- |
+| `GET` | `/api/v1/judge/contexts` | Entrega únicamente las asignaciones propias y la gimnasta activa aplicable. |
+| `PUT` | `/api/v1/judge/scores/{score_entry_id}` | Guarda o actualiza una nota propia. |
+
+El contexto no contiene listados de gimnastas, notas de otros jueces ni el
+puntaje total. Una asignación puede responder `WAITING_FOR_GYMNAST`,
+`WAITING_FOR_SESSION`, `WAITING_FOR_EFFECTIVE_CATEGORY` o `ACTIVE`. Los roles
+Línea y Planilla reciben el contexto activo con `can_score=false`.
+
+Ejemplo de guardado:
+
+```json
+{
+  "activation_id": "uuid-de-la-activacion-visible",
+  "value": "1,15"
+}
+```
+
+La nota acepta coma o punto, rango inclusivo de 0 a 20 y hasta dos decimales.
+Repetir exactamente el mismo `PUT` devuelve `changed=false` y conserva la hora
+del primer guardado. Si la administración cambió de gimnasta —aunque luego
+vuelva a la anterior— el `activation_id` antiguo recibe
+`STALE_ACTIVATION` y nunca se aplica.
+
+Cada cambio válido actualiza el estado `PENDING/SUBMITTED`, las resoluciones
+DA/DB y el resumen autoritativo en la misma transacción. La corrección normal
+de una nota no genera una entrada de auditoría operativa.
+
+### Cabina administrativa de puntajes
+
+Estas rutas exigen una sesión de superadministrador o administrador global:
+
+| Método | Ruta | Uso |
+| --- | --- | --- |
+| `GET` | `/api/v1/championships/{id}/categories/{category_id}/scoring` | Entrega la grilla completa de la categoría: jueces efectivos, notas individuales, pendientes, alertas A/E, resoluciones DA/DB, descuento y total. |
+| `POST` | `/api/v1/championships/{id}/categories/{category_id}/gymnasts` | Agrega una gimnasta al final o en una posición específica e inicializa sus notas. |
+| `DELETE` | `/api/v1/championships/{id}/gymnasts/{gymnast_id}` | Elimina lógicamente una gimnasta, conserva sus notas y cierra su activación si estaba en banca. |
+| `PUT` | `/api/v1/championships/{id}/categories/{category_id}/gymnasts/order` | Guarda el orden manual completo de la categoría. |
+| `POST` | `/api/v1/championships/{id}/categories/{category_id}/gymnasts/order-by-score` | Ordena persistentemente por total, luego E y finalmente A. |
+| `PUT` | `/api/v1/championships/{id}/score-entries/{score_entry_id}` | Completa o corrige una nota individual. |
+| `PUT` | `/api/v1/championships/{id}/gymnasts/{gymnast_id}/discount` | Actualiza el descuento y recalcula el total. |
+| `PUT` | `/api/v1/championships/{id}/gymnasts/{gymnast_id}/role-resolutions/{DA\|DB}` | Reconoce una discrepancia; opcionalmente fija otro valor efectivo. |
+
+Al crear una asignación puntuable se inicializa una nota `0.00/PENDING` para
+cada gimnasta alcanzada. Línea y Planilla no generan notas. Las reasignaciones
+respetan el corte por categoría: la grilla histórica conserva al juez anterior
+en las categorías ya recorridas y usa al nuevo desde la categoría siguiente;
+una nota precargada que quedó fuera de ese alcance no participa en los
+cálculos ni puede editarse.
+
+Las notas y descuentos aceptan coma o punto, rango inclusivo de 0 a 20 y hasta
+dos decimales. Enviar `0` cambia correctamente una nota de `PENDING` a
+`SUBMITTED`. Las operaciones son idempotentes y responden `changed=false`
+cuando el valor y el estado ya coinciden.
+
+La grilla puede consultarse en cualquier estado para revisar resultados
+históricos. Las correcciones, descuentos y resoluciones solo se admiten con el
+campeonato `ACTIVE` o `PAUSED`. Una corrección ordinaria no crea un log de
+auditoría.
+
+Agregar, eliminar y reordenar gimnastas está disponible en `DRAFT`, `ACTIVE`
+y `PAUSED`. El alta admite nombres repetidos porque la identidad es el UUID:
+
+```json
+{
+  "full_name": "Nombre de la gimnasta o conjunto",
+  "club_name": "Club",
+  "passing_order": 3
+}
+```
+
+`passing_order` es opcional; si no se envía, se agrega al final. Para el orden
+manual debe enviarse una permutación completa, sin omisiones ni duplicados:
+
+```json
+{
+  "gymnast_ids": [
+    "uuid-primera",
+    "uuid-segunda",
+    "uuid-tercera"
+  ]
+}
+```
+
+La eliminación conserva `score_entries` y `score_summaries` para trazabilidad,
+pero la gimnasta deja de aparecer en las grillas. La acción
+`GYMNAST_DELETED` queda en `audit_logs`.
+
+Ejemplo de resolución que conserva la primera nota recibida:
+
+```json
+{}
+```
+
+Ejemplo de resolución que fija otro valor:
+
+```json
+{
+  "value": "5,30"
+}
+```
+
+### Publicación manual de categoría completa
+
+No existe publicación parcial ni automática. Cada llamada autenticada crea una
+fotografía nueva e inmutable de todas las gimnastas activas de la categoría:
+
+| Método | Ruta | Uso |
+| --- | --- | --- |
+| `POST` | `/api/v1/championships/{id}/categories/{category_id}/publish` | Publica manualmente la categoría completa. Solo admite el campeonato `ACTIVE`. |
+| `GET` | `/api/v1/public/championships/active` | Entrega el campeonato activo y sus categorías. Admite `query` para buscar por categoría, gimnasta o club. |
+| `GET` | `/api/v1/public/championships/active/categories/{category_id}/results` | Lee sin autenticación la última fotografía de la categoría del campeonato activo. |
+
+El `POST` no recibe cuerpo ni se ejecuta como efecto de guardar una nota. Cada
+pulsación crea un `publication_batch` distinto con modo `FULL_CATEGORY`,
+incluye los totales `0.00` y registra `CATEGORY_PUBLISHED` en auditoría.
+
+Los resultados públicos solo contienen nombre, club, orden, posición y total;
+no exponen notas individuales, DA/DB/A/E ni estados pendientes. Una corrección
+posterior permanece privada hasta otro `POST`. Una gimnasta agregada después
+de la última publicación aparece públicamente con `0.00` hasta republicar, y
+una gimnasta eliminada desaparece inmediatamente.
+
+La consulta de una categoría admite `query` y
+`sort=passing_order|score`. El orden por puntaje utiliza total, E y A sin
+exponer esos valores de desempate. La ruta Angular pública es `/resultados`;
+funciona sin sesión, permite buscar, cambiar de categoría, ordenar y actualizar
+manualmente la consulta.
+
+---
 
 API REST en Python Flask con MongoDB para el sistema de puntajes de gimnasia rítmica.
 

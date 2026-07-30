@@ -1,6 +1,17 @@
 Flask==3.0.0
 Flask-CORS==4.0.0
+Flask-Migrate>=4.0,<5.0
+Flask-SQLAlchemy>=3.1,<4.0
+Flask-JWT-Extended>=4.7,<5.0
+Flask-Limiter>=4.1,<5.0
+SQLAlchemy>=2.0,<3.0
+alembic>=1.13,<2.0
+psycopg[binary]>=3.2,<4.0
+gunicorn>=23.0,<24.0
+argon2-cffi>=25.1,<26.0
+google-cloud-storage>=3.0,<4.0
 pymongo==4.6.1
 openpyxl==3.1.2
 python-dotenv==1.0.0
 reportlab==4.2.2
+pytest>=8.0,<10.0

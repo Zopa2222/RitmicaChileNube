@@ -1,0 +1,76 @@
+<main class="operations-page">
+    <a mat-button [routerLink]="['/championships', championshipId]">
+        <mat-icon>arrow_back</mat-icon> Campeonato
+    </a>
+    <header>
+        <div>
+            <span class="eyebrow">Cabina administrativa</span>
+            <h1>Operación en vivo</h1>
+            <p>Activa una gimnasta por banca. Cada cambio genera una nueva activación segura.</p>
+        </div>
+        <a mat-stroked-button [routerLink]="['/championships', championshipId, 'export']">
+            <mat-icon>download</mat-icon> Exportar
+        </a>
+    </header>
+
+    <p class="message" *ngIf="message">{{ message }}</p>
+    <section *ngIf="loading" class="state">Cargando operación…</section>
+    <ng-container *ngIf="!loading">
+        <label class="day-picker" *ngIf="days.length">
+            Día de competencia
+            <select [(ngModel)]="selectedDayId" (change)="loadDay()">
+                <option *ngFor="let day of days" [value]="day.id">
+                    Día {{ day.sequence }} · {{ day.date }} · {{ day.sheet_name }}
+                </option>
+            </select>
+        </label>
+
+        <section class="bench-grid" *ngIf="operations as data">
+            <mat-card *ngFor="let bench of benches">
+                <mat-card-header>
+                    <mat-card-title>Banca {{ bench }}</mat-card-title>
+                    <mat-card-subtitle *ngIf="data.benches[bench].active as active">
+                        Activa: {{ active.full_name }}
+                    </mat-card-subtitle>
+                    <mat-card-subtitle *ngIf="!data.benches[bench].active">Sin gimnasta activa</mat-card-subtitle>
+                </mat-card-header>
+                <mat-card-content>
+                    <section *ngFor="let category of data.benches[bench].categories" class="category">
+                        <div class="category-heading">
+                            <strong>{{ category.name }}</strong><small>{{ category.session }}</small>
+                            <a mat-button [routerLink]="['/championships', championshipId, 'categories', category.id, 'scoring']">Planilla</a>
+                        </div>
+                        <button
+                            *ngFor="let gymnast of category.gymnasts"
+                            mat-stroked-button
+                            type="button"
+                            [class.active]="data.benches[bench].active?.gymnast_id === gymnast.id"
+                            (click)="activate(bench, gymnast.id)">
+                            {{ gymnast.full_name }} <span *ngIf="gymnast.club_name">· {{ gymnast.club_name }}</span>
+                        </button>
+                    </section>
+                </mat-card-content>
+            </mat-card>
+        </section>
+
+        <section class="assignments">
+            <h2>Asignaciones del día</h2>
+            <div class="assignment-form">
+                <select [(ngModel)]="assignmentDraft.bench"><option value="A">Banca A</option><option value="B">Banca B</option></select>
+                <select [(ngModel)]="assignmentDraft.session"><option value="AM">AM</option><option value="PM">PM</option></select>
+                <select [(ngModel)]="assignmentDraft.role"><option *ngFor="let role of ['DA', 'DB', 'A', 'E', 'L', 'P']" [value]="role">{{ role }}</option></select>
+                <select [(ngModel)]="assignmentDraft.judgeId"><option value="">Crear juez para esta asignación</option><option *ngFor="let judge of judges" [value]="judge.id">{{ judge.first_name }} {{ judge.last_name }} · {{ judge.rut }}</option></select>
+                <input *ngIf="!assignmentDraft.judgeId" placeholder="Nombre" [(ngModel)]="assignmentDraft.firstName"><input *ngIf="!assignmentDraft.judgeId" placeholder="Apellido" [(ngModel)]="assignmentDraft.lastName"><input *ngIf="!assignmentDraft.judgeId" placeholder="RUT" [(ngModel)]="assignmentDraft.rut">
+                <button mat-flat-button color="primary" (click)="createAssignment()">Asignar juez</button>
+            </div>
+            <p *ngIf="!assignmentsForDay().length">No hay jueces asignados para este día.</p>
+            <ul *ngIf="assignmentsForDay().length">
+                <li *ngFor="let assignment of assignmentsForDay()">
+                    <strong>{{ assignment.judge.first_name }} {{ assignment.judge.last_name }}</strong>
+                    · Banca {{ assignment.bench }} · {{ assignment.session }} · {{ assignment.role }}
+                    <button mat-button (click)="reassign(assignment)">Reasignar</button>
+                </li>
+            </ul>
+        </section>
+    </ng-container>
+</main>

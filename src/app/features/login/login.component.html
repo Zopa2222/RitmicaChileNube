@@ -1,0 +1,121 @@
+<main class="login-page">
+    <div class="background-orb orb-one" aria-hidden="true"></div>
+    <div class="background-orb orb-two" aria-hidden="true"></div>
+
+    <a class="brand" routerLink="/" aria-label="Volver al inicio">
+        <img src="assets/logo.jpeg" alt="">
+        <span>Rítmica Chile</span>
+    </a>
+
+    <mat-card class="login-card">
+        <mat-card-header>
+            <mat-card-title>Ingresar al sistema</mat-card-title>
+            <mat-card-subtitle>
+                Administración y cabina de jueces
+            </mat-card-subtitle>
+        </mat-card-header>
+
+        <mat-card-content>
+            <div
+                *ngIf="sessionExpired"
+                class="notice"
+                role="status">
+                <mat-icon>schedule</mat-icon>
+                Tu sesión terminó. Ingresa nuevamente para continuar.
+            </div>
+
+            <div
+                *ngIf="accessWindowClosed"
+                class="notice"
+                role="status">
+                <mat-icon>lock_clock</mat-icon>
+                La ventana de acceso del juez ya no se encuentra vigente.
+            </div>
+
+            <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+                <mat-form-field appearance="outline">
+                    <mat-label>Usuario</mat-label>
+                    <mat-icon matPrefix>person</mat-icon>
+                    <input
+                        matInput
+                        formControlName="username"
+                        autocomplete="username"
+                        autocapitalize="characters"
+                        aria-describedby="username-help">
+                    <mat-hint id="username-help">
+                        Se aceptan mayúsculas o minúsculas
+                    </mat-hint>
+                    <mat-error *ngIf="form.controls.username.hasError('required')">
+                        Ingresa tu usuario
+                    </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Contraseña</mat-label>
+                    <mat-icon matPrefix>key</mat-icon>
+                    <input
+                        matInput
+                        formControlName="password"
+                        [type]="hidePassword ? 'password' : 'text'"
+                        autocomplete="current-password">
+                    <button
+                        mat-icon-button
+                        matSuffix
+                        type="button"
+                        (click)="hidePassword = !hidePassword"
+                        [attr.aria-label]="hidePassword
+                            ? 'Mostrar contraseña'
+                            : 'Ocultar contraseña'">
+                        <mat-icon>
+                            {{ hidePassword ? 'visibility' : 'visibility_off' }}
+                        </mat-icon>
+                    </button>
+                    <mat-error *ngIf="form.controls.password.hasError('required')">
+                        Ingresa tu contraseña
+                    </mat-error>
+                </mat-form-field>
+
+                <div
+                    *ngIf="errorMessage"
+                    class="error-message"
+                    role="alert"
+                    aria-live="assertive">
+                    <mat-icon>error_outline</mat-icon>
+                    <div>
+                        <strong>{{ errorMessage }}</strong>
+                        <span *ngIf="nextAccessWindow">
+                            Próximo acceso:
+                            {{ nextAccessWindow.starts_at
+                                | date:'dd/MM/yyyy HH:mm' }}
+                            a
+                            {{ nextAccessWindow.ends_at | date:'HH:mm' }}.
+                        </span>
+                        <span
+                            *ngIf="!nextAccessWindow
+                                && errorMessage.includes('ventana')">
+                            Consulta al administrador del campeonato.
+                        </span>
+                    </div>
+                </div>
+
+                <button
+                    mat-flat-button
+                    color="primary"
+                    class="submit-button"
+                    type="submit"
+                    [disabled]="loading">
+                    <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
+                    <mat-icon *ngIf="!loading">login</mat-icon>
+                    <span>{{ loading ? 'Ingresando…' : 'Ingresar' }}</span>
+                </button>
+            </form>
+        </mat-card-content>
+
+        <mat-card-actions>
+            <a mat-button routerLink="/resultados">
+                <mat-icon>leaderboard</mat-icon>
+                Ver resultados públicos
+            </a>
+        </mat-card-actions>
+    </mat-card>
+</main>

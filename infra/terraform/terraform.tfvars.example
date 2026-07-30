@@ -1,0 +1,4 @@
+project_id = "your-gcp-project"
+region = "southamerica-west1"
+domain_name = "puntajes.example.cl"
+backend_image = "southamerica-west1-docker.pkg.dev/your-gcp-project/ritmica/ritmica-backend:replace-with-commit"

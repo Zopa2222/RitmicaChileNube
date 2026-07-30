@@ -1,0 +1,98 @@
+.portal {
+    min-height: calc(100vh - 64px);
+    padding: clamp(2rem, 6vw, 5rem);
+    background:
+        radial-gradient(circle at top right, #e0e7ff 0, transparent 32rem),
+        #f8fafc;
+}
+
+.welcome {
+    max-width: 760px;
+    margin: 0 auto 2.5rem;
+}
+
+.eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #4338ca;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.78rem;
+}
+
+.welcome h1 {
+    margin: 0.8rem 0;
+    font-size: clamp(2.2rem, 6vw, 4rem);
+    line-height: 1;
+    color: #172554;
+}
+
+.welcome p {
+    color: #64748b;
+    font-size: 1.08rem;
+    line-height: 1.65;
+}
+
+.portal-grid {
+    max-width: 1100px;
+    margin: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.25rem;
+}
+
+.portal-grid mat-card {
+    min-height: 265px;
+    padding: 1.5rem;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+    box-shadow: var(--shadow-md);
+}
+
+.portal-grid mat-card > mat-icon {
+    width: 52px;
+    height: 52px;
+    font-size: 52px;
+    color: #4f46e5;
+}
+
+.portal-grid h2,
+.judge-status h2 {
+    margin: 0;
+    color: #1e293b;
+}
+
+.portal-grid p {
+    flex: 1;
+    color: #64748b;
+    line-height: 1.55;
+}
+
+.judge-status {
+    max-width: 760px;
+    margin: auto;
+    padding: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    border: 1px solid #bbf7d0;
+    border-radius: 18px;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.judge-status > mat-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 42px;
+}
+
+.judge-status p {
+    margin-top: 0.45rem;
+    line-height: 1.55;
+}

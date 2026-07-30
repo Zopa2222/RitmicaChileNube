@@ -222,6 +222,17 @@
     }
 }
 
+.public-card {
+    &::before {
+        background: linear-gradient(135deg, #10b981, #0f766e);
+    }
+
+    &:hover .icon-wrapper,
+    &:hover .fake-button {
+        background: linear-gradient(135deg, #10b981, #0f766e);
+    }
+}
+
 
 .card-content {
     h2 {

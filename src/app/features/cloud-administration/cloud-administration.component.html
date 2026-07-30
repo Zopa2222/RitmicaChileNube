@@ -1,0 +1,17 @@
+<main class="administration-page">
+    <header><span class="eyebrow">Superadministración</span><h1>Control global</h1><p>Las acciones sensibles quedan registradas. El log se actualiza cada cinco segundos.</p></header>
+    <p *ngIf="message" class="message">{{ message }}</p>
+    <section class="credentials" *ngIf="credentials"><strong>Entrega estas credenciales ahora:</strong><span>Usuario: {{ credentials.username }}</span><code>{{ credentials.password }}</code><button mat-button (click)="credentials = null">Ocultar</button></section>
+    <section class="grid">
+        <article class="panel">
+            <h2>Nuevo juez</h2>
+            <label>Nombre<input [(ngModel)]="newJudge.first_name"></label><label>Apellido<input [(ngModel)]="newJudge.last_name"></label><label>RUT<input [(ngModel)]="newJudge.rut"></label>
+            <button mat-flat-button color="primary" (click)="createJudge()">Crear y generar credencial</button>
+        </article>
+        <article class="panel"><h2>Recuperar administrador</h2><p>Úsalo solo luego de verificar su identidad.</p><label>Nueva contraseña<input type="password" [(ngModel)]="newPassword"></label><button mat-stroked-button (click)="recoverAdministrator()">Restablecer acceso</button></article>
+    </section>
+    <section class="panel judges"><div class="section-heading"><h2>Jueces</h2><input placeholder="Buscar" [(ngModel)]="query" (keyup.enter)="loadJudges()"><button mat-button (click)="loadJudges()">Buscar</button></div>
+        <table><thead><tr><th>Nombre</th><th>Usuario</th><th>RUT</th><th>Estado</th><th></th></tr></thead><tbody><tr *ngFor="let judge of judges"><td>{{ judge.first_name }} {{ judge.last_name }}</td><td>{{ judge.username }}</td><td>{{ judge.rut }}</td><td>{{ judge.status }}</td><td><button mat-button (click)="regenerate(judge)">Credencial</button><button mat-button (click)="disable(judge)" [disabled]="judge.status === 'DISABLED'">Deshabilitar</button></td></tr></tbody></table>
+    </section>
+    <section class="panel logs"><h2>Logs operativos</h2><ul><li *ngFor="let log of logs"><time>{{ log.occurred_at | date:'dd/MM HH:mm:ss':'UTC' }}</time><strong>{{ log.action }}</strong><span>{{ log.details | json }}</span></li></ul></section>
+</main>

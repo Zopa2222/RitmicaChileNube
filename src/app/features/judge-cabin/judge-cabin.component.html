@@ -1,0 +1,20 @@
+<main class="cabin-page">
+    <header><span class="eyebrow">Cabina de juez</span><h1>Tu evaluación activa</h1><p>Solo ves las asignaciones y la gimnasta habilitada para ti.</p></header>
+    <p class="status global" *ngIf="statuses.global">{{ statuses.global }}</p>
+    <p *ngIf="loading" class="loading">Cargando cabina…</p>
+    <section class="context-grid" *ngIf="!loading">
+        <article class="context" *ngFor="let context of contexts">
+            <div class="context-heading"><strong>{{ context.role }} · Banca {{ context.bench }}</strong><span>{{ context.session }}</span></div>
+            <ng-container *ngIf="context.state === 'ACTIVE' && context.active as active; else waiting">
+                <h2>{{ active.gymnast.full_name }}</h2><p>{{ active.gymnast.club_name }} · {{ active.category.name }}</p>
+                <ng-container *ngIf="context.can_score && active.score as score; else observer">
+                    <label>Nota<input inputmode="decimal" [(ngModel)]="values[score.id]" (change)="save(context)" aria-label="Nota"></label>
+                    <p class="status" [class.pending]="statuses[score.id]?.includes('Pendiente')">{{ statuses[score.id] || (score.submission_status === 'SUBMITTED' ? 'Guardado' : 'Pendiente de envío') }}</p>
+                </ng-container>
+                <ng-template #observer><p class="status">Esta asignación no registra nota.</p></ng-template>
+            </ng-container>
+            <ng-template #waiting><p class="waiting">{{ context.state === 'WAITING_FOR_GYMNAST' ? 'Esperando que administración active una gimnasta.' : 'Tu asignación todavía no está habilitada para esta categoría.' }}</p></ng-template>
+        </article>
+    </section>
+    <p *ngIf="!loading && !contexts.length" class="waiting">No tienes asignaciones activas en este momento.</p>
+</main>

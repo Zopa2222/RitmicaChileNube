@@ -1,7 +1,26 @@
-version: '3.8'
-
 services:
+  # PostgreSQL service for the normalized cloud model
+  postgres:
+    image: postgres:16-alpine
+    container_name: ritmica_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ritmica_chile
+      POSTGRES_USER: ritmica
+      POSTGRES_PASSWORD: ritmica_local
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ritmica_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ritmica -d ritmica_chile"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # MongoDB service
+  # Transitional: retained while existing routes are migrated to PostgreSQL.
   mongo:
     image: mongo:6.0
     container_name: ritmica_mongo
@@ -28,14 +47,19 @@ services:
     ports:
       - "8080:8080"
     environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://ritmica:ritmica_local@postgres:5432/ritmica_chile
       MONGODB_URI: mongodb://mongo:27017/
       FLASK_PORT: 8080
       FLASK_DEBUG: "True"
       CORS_ORIGINS: http://localhost:4200
+    command: ["python", "run.py"]
     volumes:
       - ./backend:/app
       - /app/__pycache__
     depends_on:
+      postgres:
+        condition: service_healthy
       mongo:
         condition: service_healthy
     networks:
@@ -55,6 +79,8 @@ services:
       - ritmica_network
 
 volumes:
+  postgres_data:
+    driver: local
   mongo_data:
     driver: local
 

@@ -148,6 +148,115 @@
             </div>
         </section>
 
+        <section *ngIf="competitionDays.length" class="judge-management">
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">Configuración del campeonato</span>
+                    <h2>Jueces asignados</h2>
+                    <p>Revisa cada jornada y asigna o cambia jueces sin salir del campeonato.</p>
+                </div>
+            </div>
+
+            <label class="assignment-day-picker">
+                Jornada a revisar
+                <select [(ngModel)]="selectedAssignmentDayId">
+                    <option *ngFor="let day of competitionDays" [value]="day.id">
+                        Día {{ day.sequence }} · {{ day.date | date:'dd/MM/yyyy':'UTC' }} · {{ day.sheet_name }}
+                    </option>
+                </select>
+            </label>
+
+            <div *ngIf="assignmentChangesAllowed" class="new-assignment">
+                <div class="new-assignment-heading">
+                    <mat-icon>person_add</mat-icon>
+                    <div>
+                        <h3>Asignar juez</h3>
+                        <p>Busca un juez registrado o crea uno nuevo para esta asignación.</p>
+                        <p *ngIf="item.status !== 'DRAFT'" class="assignment-timing-note">
+                            La asignación se aplicará desde la siguiente categoría disponible.
+                        </p>
+                    </div>
+                </div>
+                <div class="assignment-form">
+                    <label>Banca
+                        <select [(ngModel)]="assignmentDraft.bench"><option value="A">Banca A</option><option value="B">Banca B</option></select>
+                    </label>
+                    <label>Jornada
+                        <select [(ngModel)]="assignmentDraft.session"><option value="AM">AM</option><option value="PM">PM</option></select>
+                    </label>
+                    <label>Rol
+                        <select [(ngModel)]="assignmentDraft.role"><option *ngFor="let role of ['DA', 'DB', 'A', 'E', 'L', 'P']" [value]="role">{{ role }}</option></select>
+                    </label>
+                    <label class="judge-selector">Juez
+                        <span class="judge-search-input">
+                            <mat-icon>search</mat-icon>
+                            <input
+                                [(ngModel)]="judgeSearchText"
+                                (ngModelChange)="onJudgeSearchChanged()"
+                                placeholder="Busca por nombre, apellido o RUT"
+                                autocomplete="off"
+                                aria-label="Buscar juez">
+                        </span>
+                    </label>
+                    <div class="judge-search-results" *ngIf="judgeSearchText.trim() && !assignmentDraft.judgeId && !showNewJudgeForm">
+                        <p *ngIf="searchingJudges">Buscando jueces…</p>
+                        <button *ngFor="let judge of judgeSearchResults" type="button" (click)="selectJudge(judge)">
+                            <strong>{{ judge.first_name }} {{ judge.last_name }}</strong>
+                            <small>RUT {{ judge.rut }}</small>
+                        </button>
+                        <p *ngIf="!searchingJudges && !judgeSearchResults.length">No encontramos jueces con esa búsqueda.</p>
+                    </div>
+                    <button mat-stroked-button type="button" class="new-judge-button" (click)="openNewJudgeForm()" [disabled]="managingAssignments">
+                        <mat-icon>add</mat-icon> Crear juez nuevo
+                    </button>
+                    <ng-container *ngIf="showNewJudgeForm">
+                        <label>Nombre<input placeholder="Nombre" [(ngModel)]="assignmentDraft.firstName"></label>
+                        <label>Apellido<input placeholder="Apellido" [(ngModel)]="assignmentDraft.lastName"></label>
+                        <label>RUT<input placeholder="12.345.678-5" [(ngModel)]="assignmentDraft.rut" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" (ngModelChange)="formatInlineRut($event)"></label>
+                    </ng-container>
+                    <button mat-flat-button color="primary" type="button" (click)="createAssignment()" [disabled]="managingAssignments || (!assignmentDraft.judgeId && (!showNewJudgeForm || inlineJudgeInvalid))">
+                        <mat-icon>check_circle</mat-icon> Asignar juez
+                    </button>
+                </div>
+            </div>
+
+            <p *ngIf="!assignmentChangesAllowed" class="assignment-readonly">
+                Este campeonato ya no admite cambios en sus asignaciones.
+            </p>
+            <p *ngIf="!assignmentsForSelectedDay().length" class="no-assignments">
+                No hay jueces asignados para esta jornada.
+            </p>
+            <div *ngIf="assignmentsForSelectedDay().length" class="assignment-list">
+                <article *ngFor="let assignment of assignmentsForSelectedDay()" class="assignment-card">
+                    <div class="assignment-summary">
+                        <span class="assignment-role">{{ assignment.role }}</span>
+                        <div>
+                            <strong>{{ assignment.judge.first_name }} {{ assignment.judge.last_name }}</strong>
+                            <span>Banca {{ assignment.bench }} · Jornada {{ assignment.session }}</span>
+                        </div>
+                    </div>
+                    <small>Desde {{ assignment.effective_from_category.name }}</small>
+                    <div *ngIf="assignmentChangesAllowed" class="reassign-control">
+                        <select [(ngModel)]="replacementJudgeIds[assignment.id]" aria-label="Nuevo juez">
+                            <option value="">Cambiar por…</option>
+                            <option *ngFor="let judge of judges" [value]="judge.id" [disabled]="judge.id === assignment.judge.id">
+                                {{ judge.first_name }} {{ judge.last_name }}
+                            </option>
+                        </select>
+                        <button mat-stroked-button type="button" (click)="reassign(assignment)" [disabled]="managingAssignments || !replacementJudgeIds[assignment.id]">
+                            Cambiar juez
+                        </button>
+                        <button mat-stroked-button type="button" class="remove-judge-button" (click)="removeAssignment(assignment)" [disabled]="managingAssignments">
+                            <mat-icon>delete_outline</mat-icon> Eliminar juez
+                        </button>
+                    </div>
+                    <small *ngIf="assignmentChangesAllowed" class="reassign-note">
+                        El cambio se aplicará desde la siguiente categoría disponible.
+                    </small>
+                </article>
+            </div>
+        </section>
+
         <section
             *ngIf="item.counts.days > 0 && item.status === 'DRAFT'"
             class="information-note">

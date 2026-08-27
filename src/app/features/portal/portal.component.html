@@ -18,7 +18,7 @@
             del sistema.
         </p>
         <p *ngIf="user.account_type === 'JUDGE'">
-            Tu identidad y ventana de acceso fueron verificadas. La cabina
+            Tu identidad y asignación vigente fueron verificadas. La cabina
             mostrará únicamente la gimnasta activa correspondiente.
         </p>
     </section>
@@ -36,11 +36,11 @@
         </mat-card>
 
         <mat-card *ngIf="user.account_type === 'SUPER_ADMIN'">
-            <mat-icon>admin_panel_settings</mat-icon>
-            <h2>Control global</h2>
-            <p>Administra jueces, credenciales y logs operativos.</p>
-            <a mat-stroked-button color="primary" routerLink="/superadministracion">
-                Abrir superadministración
+            <mat-icon>groups</mat-icon>
+            <h2>Jueces</h2>
+            <p>Crea, edita, elimina y administra las credenciales de los jueces.</p>
+            <a mat-stroked-button color="primary" routerLink="/superadministracion/jueces">
+                Administrar jueces
             </a>
         </mat-card>
 
@@ -59,6 +59,15 @@
             <p>Revisa exactamente lo que pueden consultar los espectadores.</p>
             <a mat-stroked-button routerLink="/resultados">
                 Ver resultados
+            </a>
+        </mat-card>
+
+        <mat-card *ngIf="user.account_type === 'SUPER_ADMIN'">
+            <mat-icon>settings</mat-icon>
+            <h2>Configuración</h2>
+            <p>Cambia la contraseña del administrador y revisa los logs operativos.</p>
+            <a mat-stroked-button color="primary" routerLink="/superadministracion/configuracion">
+                Abrir configuración
             </a>
         </mat-card>
     </section>

@@ -7,7 +7,4 @@ select { border: 1px solid #cbd5e1; border-radius: .5rem; padding: .7rem; backgr
 .bench-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; }
 .category { border-top: 1px solid #e2e8f0; padding: 1rem 0; display: grid; gap: .5rem; }
 .category button { justify-content: flex-start; text-align: left; }.category button.active { border-color: #15803d; background: #f0fdf4; }
-.assignments { margin-top: 2rem; background: white; border-radius: .75rem; padding: 1rem; }
-.assignment-form { display:flex; flex-wrap:wrap; gap:.5rem; margin:.75rem 0; }
-.assignment-form input,.assignment-form select { padding:.55rem; border:1px solid #cbd5e1; border-radius:.4rem; }
 @media (max-width: 600px) { .operations-page { padding: 1rem; } header { align-items: flex-start; flex-direction: column; } }

@@ -10,7 +10,7 @@
                 <small class="brand-lockup__subtitle">Sistema oficial de puntajes</small>
             </span>
         </a>
-        <nav class="internal-access" aria-label="Acceso al sistema">
+        <nav *ngIf="!(user$ | async)" class="internal-access" aria-label="Acceso al sistema">
             <span>Jueces y administración</span>
             <a routerLink="/ingresar" class="login-link">Iniciar sesión</a>
         </nav>

@@ -304,6 +304,7 @@ export interface CategoryScoring {
 }
 
 export type JudgeContextState =
+    | 'WAITING_FOR_CHAMPIONSHIP'
     | 'WAITING_FOR_GYMNAST'
     | 'WAITING_FOR_SESSION'
     | 'WAITING_FOR_EFFECTIVE_CATEGORY'
@@ -351,6 +352,7 @@ export interface AuditLogEntry {
     actor_user_id: string | null;
     action: string;
     championship_id: string | null;
+    championship: { id: string; name: string } | null;
     entity_type: string | null;
     entity_id: string | null;
     details: Record<string, unknown>;

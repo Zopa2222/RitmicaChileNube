@@ -129,6 +129,7 @@ En desarrollo los originales se guardan localmente. En Cloud Run se configura
 | `GET` | `/api/v1/championships/{id}/competition-days` | Lista los días disponibles para configurar. |
 | `GET` | `/api/v1/judges?query=...` | Busca cuentas de juez por nombre, usuario o RUT. |
 | `POST` | `/api/v1/judges` | Crea una cuenta global de juez; solo superadministrador. |
+| `POST` | `/api/v1/admin/judges/credentials/regenerate-batch` | Regenera de forma atómica hasta 100 credenciales de jueces seleccionados; solo superadministrador. |
 | `GET/POST` | `/api/v1/championships/{id}/judge-assignments` | Lista o crea asignaciones por día, banca, jornada y rol. |
 | `POST` | `/api/v1/championships/{id}/judge-assignments/{assignment_id}/reassign` | Reasigna el rol desde la categoría siguiente a la gimnasta activa. |
 | `GET` | `/api/v1/championships/{id}/competition-days/{day_id}/operations` | Entrega categorías, gimnastas y activación actual de ambas bancas. |
@@ -152,12 +153,15 @@ asignación. Para ello, en vez de `judge_id`, envía:
 ```
 
 La respuesta incluye la contraseña inicial una sola vez. Si el juez ya existe,
-se envía `judge_id` y no se generan nuevas credenciales. Las ventanas de acceso
-se recalculan automáticamente: 08:00–16:00 para una sola jornada y
-08:00–00:00 cuando el juez tiene AM y PM el mismo día.
+se envía `judge_id` y no se generan nuevas credenciales. Las asignaciones se
+mantienen como alcance operativo del juez, no como una restricción horaria de
+inicio de sesión.
 Las asignaciones iniciales se crean mientras el campeonato está en borrador;
 una vez iniciada la competencia, los cambios usan la ruta de reasignación y
-comienzan automáticamente en la categoría siguiente.
+comienzan automáticamente en la categoría siguiente. Un juez con una
+asignación vigente puede iniciar o recuperar sesión durante todo el campeonato
+activo (y mientras esté pausado), pero solo puede registrar notas cuando el
+campeonato está activo y su asignación corresponde a la categoría en curso.
 
 El cambio de gimnasta es idempotente si se selecciona nuevamente la que ya está
 activa. Si se cambia a otra y luego se vuelve a la anterior, se crea un nuevo
@@ -166,10 +170,9 @@ asociados a una activación antigua.
 
 ### Cabina del juez
 
-Estas rutas solo admiten una sesión de tipo `JUDGE` dentro de una ventana de
-acceso vigente. Si el login ocurre antes de la ventana, la respuesta
-`ACCESS_WINDOW_CLOSED` incluye `next_access_window` cuando existe una próxima
-habilitación en el campeonato activo:
+Estas rutas solo admiten una sesión de tipo `JUDGE` con una asignación vigente
+en un campeonato activo o pausado. Las notas se aceptan únicamente mientras el
+campeonato está activo y para la asignación efectiva de la categoría:
 
 | Método | Ruta | Uso |
 | --- | --- | --- |

@@ -79,4 +79,27 @@ export class CloudOperationsApiService {
             request
         );
     }
+
+    removeAssignment(
+        championshipId: string,
+        assignmentId: string
+    ): Observable<{
+        removed: boolean;
+        effective_from_category: {
+            id: string;
+            name: string;
+            passing_order: number;
+        } | null;
+    }> {
+        return this.http.delete<{
+            removed: boolean;
+            effective_from_category: {
+                id: string;
+                name: string;
+                passing_order: number;
+            } | null;
+        }>(
+            `${this.apiUrl}/${championshipId}/judge-assignments/${assignmentId}`
+        );
+    }
 }

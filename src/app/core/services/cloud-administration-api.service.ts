@@ -3,7 +3,12 @@ import { Injectable } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { AuditLogEntry, CloudChampionship, CloudJudge } from '../models/cloud.model';
+import {
+    AuditLogEntry,
+    CloudChampionship,
+    CloudJudge,
+    InitialCredentials
+} from '../models/cloud.model';
 
 @Injectable({ providedIn: 'root' })
 export class CloudAdministrationApiService {
@@ -38,9 +43,21 @@ export class CloudAdministrationApiService {
         ).pipe(map((response) => response.judge));
     }
 
-    disableJudge(judgeId: string): Observable<CloudJudge> {
-        return this.http.delete<{ judge: CloudJudge }>(
+    deleteJudge(judgeId: string): Observable<void> {
+        return this.http.delete<void>(
             `${this.apiUrl}/admin/judges/${judgeId}`
+        );
+    }
+
+    deactivateJudge(judgeId: string): Observable<CloudJudge> {
+        return this.http.post<{ judge: CloudJudge }>(
+            `${this.apiUrl}/admin/judges/${judgeId}/deactivate`, {}
+        ).pipe(map((response) => response.judge));
+    }
+
+    activateJudge(judgeId: string): Observable<CloudJudge> {
+        return this.http.post<{ judge: CloudJudge }>(
+            `${this.apiUrl}/admin/judges/${judgeId}/activate`, {}
         ).pipe(map((response) => response.judge));
     }
 
@@ -52,6 +69,17 @@ export class CloudAdministrationApiService {
             judge: CloudJudge;
             credentials: { username: string; password: string };
         }>(`${this.apiUrl}/admin/judges/${judgeId}/credentials/regenerate`, {});
+    }
+
+    regenerateCredentialsBatch(judgeIds: string[]): Observable<Array<{
+        judge: CloudJudge;
+        credentials: InitialCredentials;
+    }>> {
+        return this.http.post<{
+            items: Array<{ judge: CloudJudge; credentials: InitialCredentials }>;
+        }>(`${this.apiUrl}/admin/judges/credentials/regenerate-batch`, {
+            judge_ids: judgeIds
+        }).pipe(map((response) => response.items));
     }
 
     recoverGlobalAdministrator(newPassword: string): Observable<void> {

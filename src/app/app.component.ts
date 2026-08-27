@@ -51,6 +51,15 @@ import {
                     </span>
                 </a>
                 <span class="toolbar-spacer"></span>
+                @if (user.account_type !== 'JUDGE') {
+                    <a
+                        mat-button
+                        class="administration-link"
+                        routerLink="/administracion">
+                        <mat-icon>dashboard</mat-icon>
+                        <span>Administración</span>
+                    </a>
+                }
                 <div class="identity">
                     <span class="identity-name">
                         {{ user.first_name }} {{ user.last_name }}
@@ -102,6 +111,10 @@ import {
         .identity-role {
             color: #64748b;
             font-size: 0.72rem;
+        }
+        .administration-link {
+            min-height: 44px;
+            margin-right: 0.25rem;
         }
         @media (max-width: 640px) {
             .session-toolbar {

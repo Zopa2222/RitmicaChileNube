@@ -29,6 +29,7 @@ import {
 import {
     PublicResultsService
 } from '../../core/services/public-results.service';
+import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
     selector: 'app-public-results',
@@ -43,6 +44,7 @@ export class PublicResultsComponent implements OnInit {
     private resultRequestToken = 0;
 
     readonly searchControl = new FormControl('', { nonNullable: true });
+    readonly user$ = this.authService.user$;
 
     catalog: PublicCatalogResponse | null = null;
     categories: PublicCategorySummary[] = [];
@@ -55,7 +57,8 @@ export class PublicResultsComponent implements OnInit {
     errorMessage = '';
 
     constructor(
-        private readonly publicResultsService: PublicResultsService
+        private readonly publicResultsService: PublicResultsService,
+        private readonly authService: AuthService
     ) { }
 
     ngOnInit(): void {

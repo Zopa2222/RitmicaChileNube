@@ -52,25 +52,5 @@
                 </mat-card-content>
             </mat-card>
         </section>
-
-        <section class="assignments">
-            <h2>Asignaciones del día</h2>
-            <div class="assignment-form">
-                <select [(ngModel)]="assignmentDraft.bench"><option value="A">Banca A</option><option value="B">Banca B</option></select>
-                <select [(ngModel)]="assignmentDraft.session"><option value="AM">AM</option><option value="PM">PM</option></select>
-                <select [(ngModel)]="assignmentDraft.role"><option *ngFor="let role of ['DA', 'DB', 'A', 'E', 'L', 'P']" [value]="role">{{ role }}</option></select>
-                <select [(ngModel)]="assignmentDraft.judgeId"><option value="">Crear juez para esta asignación</option><option *ngFor="let judge of judges" [value]="judge.id">{{ judge.first_name }} {{ judge.last_name }} · {{ judge.rut }}</option></select>
-                <input *ngIf="!assignmentDraft.judgeId" placeholder="Nombre" [(ngModel)]="assignmentDraft.firstName"><input *ngIf="!assignmentDraft.judgeId" placeholder="Apellido" [(ngModel)]="assignmentDraft.lastName"><input *ngIf="!assignmentDraft.judgeId" placeholder="RUT" [(ngModel)]="assignmentDraft.rut">
-                <button mat-flat-button color="primary" (click)="createAssignment()">Asignar juez</button>
-            </div>
-            <p *ngIf="!assignmentsForDay().length">No hay jueces asignados para este día.</p>
-            <ul *ngIf="assignmentsForDay().length">
-                <li *ngFor="let assignment of assignmentsForDay()">
-                    <strong>{{ assignment.judge.first_name }} {{ assignment.judge.last_name }}</strong>
-                    · Banca {{ assignment.bench }} · {{ assignment.session }} · {{ assignment.role }}
-                    <button mat-button (click)="reassign(assignment)">Reasignar</button>
-                </li>
-            </ul>
-        </section>
     </ng-container>
 </main>

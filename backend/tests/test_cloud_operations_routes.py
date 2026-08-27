@@ -547,3 +547,88 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         )
     ).scalars().all()
     assert 'JUDGE_REASSIGNED' in actions
+
+
+def test_active_championship_can_add_assignment_from_next_category(
+    app,
+    client,
+):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    judge = create_user(
+        AccountType.JUDGE,
+        'JUEZ-NUEVO',
+        rut='111111111',
+    )
+    championship, day, categories, gymnasts = create_championship_context(
+        admin
+    )
+    headers = login(client, admin.username)
+
+    assert client.post(
+        f'/api/v1/championships/{championship.id}/activate',
+        headers=headers,
+    ).status_code == 200
+    assert client.put(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/A/active-gymnast',
+        json={'gymnast_id': str(gymnasts['A_AM_1'].id)},
+        headers=headers,
+    ).status_code == 200
+
+    response = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments',
+        json=assignment_payload(day, judge.id, role='E'),
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assignment = response.get_json()['assignment']
+    assert (
+        assignment['effective_from_category']['id']
+        == str(categories['A_AM_2'].id)
+    )
+    assignment_id = uuid.UUID(assignment['id'])
+    scores = db.session.execute(
+        select(ScoreEntry).where(
+            ScoreEntry.judge_assignment_id == assignment_id
+        )
+    ).scalars().all()
+    assert [score.gymnast_id for score in scores] == [
+        gymnasts['A_AM_2'].id
+    ]
+
+
+def test_admin_can_remove_draft_assignment_without_deleting_judge(
+    app,
+    client,
+):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    judge = create_user(
+        AccountType.JUDGE,
+        'JUEZ-ELIMINAR',
+        rut='111111111',
+    )
+    championship, day, _, _ = create_championship_context(admin)
+    headers = login(client, admin.username)
+    created = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments',
+        json=assignment_payload(day, judge.id, role='E'),
+        headers=headers,
+    )
+    assignment_id = created.get_json()['assignment']['id']
+
+    removed = client.delete(
+        f'/api/v1/championships/{championship.id}/judge-assignments/'
+        f'{assignment_id}',
+        headers=headers,
+    )
+
+    assert removed.status_code == 200
+    assert removed.get_json()['effective_from_category'] is None
+    assert db.session.get(User, judge.id) is not None
+    assert db.session.get(JudgeAssignment, uuid.UUID(assignment_id)) is None
+    assert db.session.execute(
+        select(ScoreEntry).where(
+            ScoreEntry.judge_assignment_id == uuid.UUID(assignment_id)
+        )
+    ).scalar_one_or_none() is None

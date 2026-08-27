@@ -81,11 +81,11 @@ export const cloudAuthInterceptor: HttpInterceptorFn = (request, next) => {
                 });
             } else if (
                 error.status === 403
-                && body?.code === 'ACCESS_WINDOW_CLOSED'
+                && body?.code === 'JUDGE_ACCESS_NOT_AVAILABLE'
             ) {
                 authState.clear();
                 void router.navigate(['/ingresar'], {
-                    queryParams: { accessWindowClosed: true }
+                    queryParams: { judgeAccessUnavailable: true }
                 });
             } else if (
                 error.status === 403

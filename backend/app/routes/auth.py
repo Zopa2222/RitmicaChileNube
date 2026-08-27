@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, make_response, request
+from flask import Blueprint, current_app, jsonify, make_response, request
 from flask_jwt_extended import (
     create_access_token,
     jwt_required,
@@ -17,8 +17,7 @@ from app.models import (
     UserStatus,
 )
 from app.security.access import (
-    judge_has_open_access_window,
-    next_judge_access_window,
+    judge_has_championship_access,
 )
 from app.security.passwords import hash_password, verify_password
 from app.security.permissions import get_authenticated_user
@@ -55,8 +54,24 @@ def record_login_event(action, user=None, reason=None):
     )
 
 
+def login_username_key():
+    """Rate-limit failed attempts per account without penalizing shared Wi-Fi."""
+    payload = request.get_json(silent=True) or {}
+    username = str(payload.get('username', '')).strip().upper()
+    return f'{request.remote_addr}:{username or "INVALID"}'
+
+
+def is_failed_login_response(response):
+    return response.status_code >= 400
+
+
 @bp.post('/login')
-@limiter.limit('5 per minute;20 per hour')
+@limiter.limit(lambda: current_app.config['LOGIN_IP_RATE_LIMIT'])
+@limiter.limit(
+    lambda: current_app.config['LOGIN_USERNAME_FAILURE_RATE_LIMIT'],
+    key_func=login_username_key,
+    deduct_when=is_failed_login_response,
+)
 def login():
     payload = request.get_json(silent=True) or {}
     username = str(payload.get('username', '')).strip().upper()
@@ -112,29 +127,20 @@ def login():
     now = datetime.now(timezone.utc)
     if (
         user.account_type == AccountType.JUDGE
-        and not judge_has_open_access_window(user.id, now)
+        and not judge_has_championship_access(user.id)
     ):
-        next_window = next_judge_access_window(user.id, now)
         record_login_event(
             'LOGIN_FAILED',
             user=user,
-            reason='ACCESS_WINDOW_CLOSED',
+            reason='JUDGE_ACCESS_NOT_AVAILABLE',
         )
         db.session.commit()
         return jsonify({
-            'error': 'El juez no tiene una ventana de acceso vigente',
-            'code': 'ACCESS_WINDOW_CLOSED',
-            'next_access_window': (
-                {
-                    'championship_id': str(next_window.championship_id),
-                    'competition_day_id': str(
-                        next_window.competition_day_id
-                    ),
-                    'starts_at': next_window.starts_at.isoformat(),
-                    'ends_at': next_window.ends_at.isoformat(),
-                }
-                if next_window else None
+            'error': (
+                'El juez no tiene una asignación vigente en un campeonato '
+                'en curso'
             ),
+            'code': 'JUDGE_ACCESS_NOT_AVAILABLE',
         }), 403
 
     if needs_rehash:
@@ -143,9 +149,15 @@ def login():
     record_login_event('LOGIN_SUCCESS', user=user)
     db.session.commit()
 
+    token_expiry = (
+        current_app.config['JUDGE_JWT_ACCESS_TOKEN_EXPIRES']
+        if user.account_type == AccountType.JUDGE
+        else None
+    )
     token = create_access_token(
         identity=str(user.id),
         additional_claims={'account_type': user.account_type.value},
+        expires_delta=token_expiry,
     )
     response = make_response(jsonify({'user': serialize_user(user)}))
     set_access_cookies(response, token)
@@ -181,5 +193,13 @@ def me():
         return jsonify({
             'error': 'Sesión inválida o cuenta deshabilitada',
             'code': 'AUTHENTICATION_REQUIRED',
+        }), 401
+    if (
+        user.account_type == AccountType.JUDGE
+        and not judge_has_championship_access(user.id)
+    ):
+        return jsonify({
+            'error': 'La sesión de juez ya no tiene acceso al campeonato',
+            'code': 'JUDGE_ACCESS_NOT_AVAILABLE',
         }), 401
     return jsonify({'user': serialize_user(user)})

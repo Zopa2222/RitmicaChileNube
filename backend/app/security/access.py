@@ -7,7 +7,34 @@ from app.models import (
     Championship,
     ChampionshipStatus,
     JudgeAccessWindow,
+    JudgeAssignment,
 )
+
+
+def judge_has_championship_access(user_id):
+    """Whether a judge may use the cabin while a championship is operating.
+
+    Login availability deliberately does not depend on the AM/PM window. A
+    judge with a current assignment can reconnect throughout an active event
+    (and while it is paused). Individual score submissions still validate the
+    assignment, category, bench, and active championship separately.
+    """
+    return db.session.execute(
+        select(JudgeAssignment.id)
+        .join(
+            Championship,
+            Championship.id == JudgeAssignment.championship_id,
+        )
+        .where(
+            JudgeAssignment.judge_user_id == user_id,
+            JudgeAssignment.superseded_at.is_(None),
+            Championship.status.in_([
+                ChampionshipStatus.ACTIVE,
+                ChampionshipStatus.PAUSED,
+            ]),
+        )
+        .limit(1)
+    ).scalar_one_or_none() is not None
 
 
 def judge_has_open_access_window(user_id, now=None):

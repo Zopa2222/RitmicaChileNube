@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+import Swal from 'sweetalert2';
 
 import { CategoryScoring, ScoringGymnast } from '../../core/models/cloud.model';
 import { CloudPublicationApiService } from '../../core/services/cloud-publication-api.service';
@@ -70,8 +71,19 @@ export class CloudScoringComponent implements OnInit {
     }
 
     async resolve(gymnast: ScoringGymnast, role: 'DA' | 'DB'): Promise<void> {
-        const value = window.prompt(`Valor efectivo ${role} (deja vacío para confirmar el visible):`);
-        if (value === null) return;
+        const result = await Swal.fire({
+            title: `Resolver valor ${role}`,
+            text: 'Deja vacío para confirmar el valor visible.',
+            input: 'text',
+            inputPlaceholder: 'Ejemplo: 8.50',
+            inputAttributes: { inputmode: 'decimal', maxlength: '5' },
+            showCancelButton: true,
+            confirmButtonText: 'Confirmar valor',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4f46e5'
+        });
+        if (!result.isConfirmed) return;
+        const value = String(result.value ?? '');
         try {
             await firstValueFrom(this.scoringApi.resolveRole(
                 this.championshipId, gymnast.id, role, value.trim() || undefined
@@ -81,19 +93,54 @@ export class CloudScoringComponent implements OnInit {
     }
 
     async addGymnast(): Promise<void> {
-        const fullName = window.prompt('Nombre de la gimnasta o conjunto:')?.trim();
-        if (!fullName) return;
-        const clubName = window.prompt('Club (opcional):')?.trim() ?? '';
+        const result = await Swal.fire({
+            title: 'Agregar gimnasta o conjunto',
+            html: `
+                <input id="gymnast-full-name" class="swal2-input" placeholder="Nombre completo">
+                <input id="gymnast-club-name" class="swal2-input" placeholder="Club (opcional)">
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Agregar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4f46e5',
+            preConfirm: () => {
+                const fullName = (document.getElementById('gymnast-full-name') as HTMLInputElement)
+                    ?.value.trim();
+                const clubName = (document.getElementById('gymnast-club-name') as HTMLInputElement)
+                    ?.value.trim() ?? '';
+                if (!fullName) {
+                    Swal.showValidationMessage('Ingresa el nombre de la gimnasta o conjunto');
+                    return;
+                }
+                return { fullName, clubName };
+            }
+        });
+        if (!result.isConfirmed || !result.value) return;
         try {
             await firstValueFrom(this.scoringApi.addGymnast(
-                this.championshipId, this.categoryId, { full_name: fullName, club_name: clubName }
+                this.championshipId,
+                this.categoryId,
+                {
+                    full_name: result.value.fullName,
+                    club_name: result.value.clubName
+                }
             ));
             await this.load();
         } catch { this.message = 'No fue posible agregar la gimnasta.'; }
     }
 
     async removeGymnast(gymnast: ScoringGymnast): Promise<void> {
-        if (!window.confirm(`¿Eliminar a ${gymnast.full_name}? Esta acción queda trazada.`)) return;
+        const confirmation = await Swal.fire({
+            title: '¿Eliminar gimnasta?',
+            text: `Eliminarás a ${gymnast.full_name}. Esta acción quedará trazada.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc2626'
+        });
+        if (!confirmation.isConfirmed) return;
         try {
             await firstValueFrom(this.scoringApi.removeGymnast(this.championshipId, gymnast.id));
             await this.load();
@@ -108,7 +155,16 @@ export class CloudScoringComponent implements OnInit {
     }
 
     async publish(): Promise<void> {
-        if (!window.confirm('Publicar la categoría completa? El público verá esta nueva fotografía.')) return;
+        const confirmation = await Swal.fire({
+            title: '¿Publicar categoría?',
+            text: 'El público verá esta nueva fotografía de resultados.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Publicar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4f46e5'
+        });
+        if (!confirmation.isConfirmed) return;
         try {
             await firstValueFrom(this.publicationApi.publishCategory(this.championshipId, this.categoryId));
             this.message = 'Categoría publicada correctamente.';

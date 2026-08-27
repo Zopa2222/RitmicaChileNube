@@ -4,6 +4,7 @@ import {
     Component,
     OnInit
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -25,18 +26,28 @@ import {
     ChampionshipStatus,
     CloudChampionship,
     CloudChampionshipDetail,
-    CompetitionDay
+    CompetitionDay,
+    CloudJudge,
+    JudgeAssignment
 } from '../../core/models/cloud.model';
 import {
     CloudChampionshipApiService
 } from '../../core/services/cloud-championship-api.service';
 import { CloudAdministrationApiService } from '../../core/services/cloud-administration-api.service';
+import { CloudJudgeApiService } from '../../core/services/cloud-judge-api.service';
+import { CloudOperationsApiService } from '../../core/services/cloud-operations-api.service';
+import {
+    formatRutInput,
+    normalizeRut,
+    rutValidationCode
+} from '../../core/utils/rut.utils';
 
 @Component({
     selector: 'app-championship-detail',
     standalone: true,
     imports: [
         CommonModule,
+        FormsModule,
         MatButtonModule,
         MatCardModule,
         MatIconModule,
@@ -50,9 +61,28 @@ import { CloudAdministrationApiService } from '../../core/services/cloud-adminis
 export class ChampionshipDetailComponent implements OnInit {
     championship: CloudChampionshipDetail | null = null;
     competitionDays: CompetitionDay[] = [];
+    assignments: JudgeAssignment[] = [];
+    judges: CloudJudge[] = [];
+    selectedAssignmentDayId = '';
+    replacementJudgeIds: Record<string, string> = {};
+    judgeSearchText = '';
+    judgeSearchResults: CloudJudge[] = [];
+    searchingJudges = false;
+    showNewJudgeForm = false;
+    assignmentDraft: {
+        bench: 'A' | 'B'; session: 'AM' | 'PM'; role: 'DA' | 'DB' | 'A' | 'E' | 'L' | 'P';
+        judgeId: string; firstName: string; lastName: string; rut: string;
+    } = {
+        bench: 'A', session: 'AM', role: 'DA', judgeId: '',
+        firstName: '', lastName: '', rut: ''
+    };
     loading = true;
     processing = false;
+    managingAssignments = false;
     errorMessage = '';
+
+    private judgeSearchTimer: ReturnType<typeof setTimeout> | undefined;
+    private judgeSearchRequest = 0;
 
     private readonly championshipId =
         this.route.snapshot.paramMap.get('championshipId') ?? '';
@@ -62,6 +92,8 @@ export class ChampionshipDetailComponent implements OnInit {
         private readonly router: Router,
         private readonly championshipsApi: CloudChampionshipApiService,
         private readonly administrationApi: CloudAdministrationApiService,
+        private readonly operationsApi: CloudOperationsApiService,
+        private readonly judgesApi: CloudJudgeApiService,
         private readonly snackBar: MatSnackBar
     ) { }
 
@@ -84,6 +116,7 @@ export class ChampionshipDetailComponent implements OnInit {
                 this.loading = false;
                 if (championship.counts.days > 0) {
                     this.loadCompetitionDays();
+                    void this.loadJudgeManagement();
                 }
             },
             error: (error) => {
@@ -217,12 +250,202 @@ export class ChampionshipDetailComponent implements OnInit {
         return labels[status];
     }
 
+    assignmentsForSelectedDay(): JudgeAssignment[] {
+        return this.assignments.filter((assignment) =>
+            assignment.competition_day.id === this.selectedAssignmentDayId
+        );
+    }
+
+    get assignmentChangesAllowed(): boolean {
+        return this.championship?.status !== 'CLOSED'
+            && this.championship?.status !== 'PENDING_DELETION'
+            && this.championship?.status !== 'DELETED';
+    }
+
+    get inlineJudgeInvalid(): boolean {
+        const draft = this.assignmentDraft;
+        return !draft.firstName.trim() || !draft.lastName.trim()
+            || rutValidationCode(draft.rut) !== null;
+    }
+
+    formatInlineRut(value: string): void {
+        this.assignmentDraft.rut = formatRutInput(value);
+    }
+
+    onJudgeSearchChanged(): void {
+        this.assignmentDraft.judgeId = '';
+        this.showNewJudgeForm = false;
+        if (this.judgeSearchTimer) {
+            clearTimeout(this.judgeSearchTimer);
+        }
+        const query = this.judgeSearchText.trim();
+        const request = ++this.judgeSearchRequest;
+        if (!query) {
+            this.judgeSearchResults = [];
+            this.searchingJudges = false;
+            return;
+        }
+        this.searchingJudges = true;
+        this.judgeSearchTimer = setTimeout(() => {
+            void this.searchJudges(query, request);
+        }, 250);
+    }
+
+    selectJudge(judge: CloudJudge): void {
+        this.assignmentDraft.judgeId = judge.id;
+        this.judgeSearchText = `${judge.first_name} ${judge.last_name} · ${judge.rut}`;
+        this.judgeSearchResults = [];
+        this.showNewJudgeForm = false;
+    }
+
+    openNewJudgeForm(): void {
+        this.assignmentDraft.judgeId = '';
+        this.judgeSearchText = '';
+        this.judgeSearchResults = [];
+        this.showNewJudgeForm = true;
+    }
+
+    async createAssignment(): Promise<void> {
+        if (!this.selectedAssignmentDayId || this.managingAssignments) {
+            return;
+        }
+        const draft = this.assignmentDraft;
+        if (!draft.judgeId && !this.showNewJudgeForm) {
+            this.snackBar.open(
+                'Busca y selecciona un juez, o crea uno nuevo para continuar.',
+                'Cerrar', { duration: 4500 }
+            );
+            return;
+        }
+        if (!draft.judgeId && this.inlineJudgeInvalid) {
+            this.snackBar.open(
+                'Ingresa nombre, apellido y un RUT válido para crear el juez.',
+                'Cerrar', { duration: 4500 }
+            );
+            return;
+        }
+        this.managingAssignments = true;
+        try {
+            const result = await firstValueFrom(this.operationsApi.createAssignment(
+                this.championshipId,
+                {
+                    competition_day_id: this.selectedAssignmentDayId,
+                    bench: draft.bench,
+                    session: draft.session,
+                    role: draft.role,
+                    ...(draft.judgeId ? { judge_id: draft.judgeId } : {
+                        judge: {
+                            first_name: draft.firstName.trim(),
+                            last_name: draft.lastName.trim(),
+                            rut: normalizeRut(draft.rut)
+                        }
+                    })
+                }
+            ));
+            this.assignmentDraft = {
+                ...this.assignmentDraft,
+                judgeId: '', firstName: '', lastName: '', rut: ''
+            };
+            this.judgeSearchText = '';
+            this.judgeSearchResults = [];
+            this.showNewJudgeForm = false;
+            await this.refreshAssignmentData();
+            this.snackBar.open(
+                result.credentials
+                    ? `Juez asignado. Credenciales: ${result.credentials.username} / ${result.credentials.password}`
+                    : this.championship?.status === 'DRAFT'
+                        ? 'Juez asignado correctamente.'
+                        : `Juez asignado desde ${result.assignment.effective_from_category.name}.`,
+                'Cerrar', { duration: result.credentials ? 8000 : 3500 }
+            );
+        } catch (error) {
+            this.snackBar.open(
+                this.apiMessage(error, 'No fue posible asignar al juez. Revisa los datos y el rol.'),
+                'Cerrar', { duration: 5000 }
+            );
+        } finally {
+            this.managingAssignments = false;
+        }
+    }
+
+    async reassign(assignment: JudgeAssignment): Promise<void> {
+        const judgeId = this.replacementJudgeIds[assignment.id];
+        if (!judgeId || this.managingAssignments) {
+            return;
+        }
+        this.managingAssignments = true;
+        try {
+            const result = await firstValueFrom(this.operationsApi.reassign(
+                this.championshipId, assignment.id, { judge_id: judgeId }
+            ));
+            delete this.replacementJudgeIds[assignment.id];
+            await this.refreshAssignmentData();
+            this.snackBar.open(
+                result.credentials
+                    ? `Juez cambiado. Credenciales: ${result.credentials.username} / ${result.credentials.password}`
+                    : `Juez cambiado desde ${result.assignment.effective_from_category.name}.`,
+                'Cerrar', { duration: result.credentials ? 8000 : 4500 }
+            );
+        } catch (error) {
+            this.snackBar.open(
+                this.apiMessage(error, 'No fue posible cambiar el juez.'),
+                'Cerrar', { duration: 5000 }
+            );
+        } finally {
+            this.managingAssignments = false;
+        }
+    }
+
+    async removeAssignment(assignment: JudgeAssignment): Promise<void> {
+        if (this.managingAssignments) {
+            return;
+        }
+        const appliesFromNextCategory = this.championship?.status !== 'DRAFT';
+        const confirmation = await Swal.fire({
+            title: '¿Eliminar esta asignación?',
+            html: appliesFromNextCategory
+                ? 'El juez conservará su acceso sólo hasta la categoría actual. '
+                    + '<strong>Se eliminará desde la siguiente categoría disponible.</strong>'
+                : 'Se quitará este juez de la banca, jornada y rol seleccionados.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar asignación',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc2626'
+        });
+        if (!confirmation.isConfirmed) {
+            return;
+        }
+        this.managingAssignments = true;
+        try {
+            const result = await firstValueFrom(this.operationsApi.removeAssignment(
+                this.championshipId, assignment.id
+            ));
+            delete this.replacementJudgeIds[assignment.id];
+            await this.refreshAssignmentData();
+            this.snackBar.open(
+                result.effective_from_category
+                    ? `Juez eliminado desde ${result.effective_from_category.name}.`
+                    : 'Asignación eliminada correctamente.',
+                'Cerrar', { duration: 4500 }
+            );
+        } catch (error) {
+            this.snackBar.open(
+                this.apiMessage(error, 'No fue posible eliminar la asignación.'),
+                'Cerrar', { duration: 5000 }
+            );
+        } finally {
+            this.managingAssignments = false;
+        }
+    }
+
     private loadCompetitionDays(): void {
         this.championshipsApi
             .listCompetitionDays(this.championshipId)
             .subscribe({
                 next: (days) => {
                     this.competitionDays = days;
+                    this.selectedAssignmentDayId = days[0]?.id ?? '';
                 },
                 error: () => {
                     this.snackBar.open(
@@ -232,6 +455,44 @@ export class ChampionshipDetailComponent implements OnInit {
                     );
                 }
             });
+    }
+
+    private async loadJudgeManagement(): Promise<void> {
+        try {
+            await this.refreshAssignmentData();
+        } catch {
+            this.snackBar.open(
+                'No fue posible cargar las asignaciones de jueces.',
+                'Cerrar', { duration: 4500 }
+            );
+        }
+    }
+
+    private async searchJudges(query: string, request: number): Promise<void> {
+        try {
+            const judges = await firstValueFrom(this.judgesApi.search(query));
+            if (request !== this.judgeSearchRequest) {
+                return;
+            }
+            this.judgeSearchResults = judges;
+        } catch {
+            if (request === this.judgeSearchRequest) {
+                this.judgeSearchResults = [];
+            }
+        } finally {
+            if (request === this.judgeSearchRequest) {
+                this.searchingJudges = false;
+            }
+        }
+    }
+
+    private async refreshAssignmentData(): Promise<void> {
+        const [assignments, judges] = await Promise.all([
+            firstValueFrom(this.operationsApi.listAssignments(this.championshipId)),
+            firstValueFrom(this.judgesApi.search(''))
+        ]);
+        this.assignments = assignments;
+        this.judges = judges;
     }
 
     private async runLifecycle(

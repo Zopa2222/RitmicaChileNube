@@ -156,6 +156,239 @@
     border-radius: 16px;
 }
 
+.judge-management {
+    margin-top: 2.5rem;
+    padding: clamp(1rem, 3vw, 1.5rem);
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #f8fafc;
+}
+
+.judge-management .section-heading p,
+.new-assignment p {
+    margin: -0.45rem 0 0;
+    color: #64748b;
+}
+
+.assignment-day-picker,
+.assignment-form label {
+    display: grid;
+    gap: 0.35rem;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 750;
+}
+
+.assignment-day-picker {
+    max-width: 430px;
+    margin: 1.25rem 0;
+}
+
+.judge-management select,
+.judge-management input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 42px;
+    padding: 0.55rem 0.65rem;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+}
+
+.judge-search-input {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 0 0.65rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.judge-search-input:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px #e0e7ff;
+}
+
+.judge-search-input mat-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 0.45rem;
+    color: #64748b;
+    font-size: 20px;
+}
+
+.judge-search-input input {
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    outline: 0;
+}
+
+.new-assignment {
+    padding: 1rem;
+    border: 1px solid #c7d2fe;
+    border-radius: 14px;
+    background: #eef2ff;
+}
+
+.new-assignment-heading,
+.assignment-summary,
+.reassign-control {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.new-assignment-heading mat-icon {
+    color: #4f46e5;
+}
+
+.new-assignment h3,
+.new-assignment p {
+    margin: 0;
+}
+
+.new-assignment .assignment-timing-note {
+    margin-top: 0.3rem;
+    color: #4338ca;
+    font-size: 0.82rem;
+}
+
+.assignment-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(105px, 1fr));
+    gap: 0.8rem;
+    align-items: end;
+    margin-top: 1rem;
+}
+
+.assignment-form .judge-selector {
+    grid-column: span 2;
+}
+
+.judge-search-results {
+    display: grid;
+    grid-column: span 2;
+    gap: 0.35rem;
+    align-self: start;
+    padding: 0.35rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.judge-search-results p {
+    margin: 0.35rem 0.45rem;
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+.judge-search-results button {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 0.7rem;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #1e293b;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+}
+
+.judge-search-results button:hover,
+.judge-search-results button:focus-visible {
+    background: #eef2ff;
+    outline: none;
+}
+
+.judge-search-results small {
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.new-judge-button {
+    justify-self: start;
+    min-height: 42px;
+}
+
+.assignment-form button {
+    min-height: 42px;
+}
+
+.no-assignments,
+.assignment-readonly {
+    margin: 1.25rem 0 0;
+    color: #64748b;
+}
+
+.assignment-readonly {
+    padding: 0.8rem 1rem;
+    border-radius: 10px;
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.assignment-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 0.8rem;
+    margin-top: 1.25rem;
+}
+
+.assignment-card {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.assignment-summary > div {
+    display: grid;
+    gap: 0.18rem;
+}
+
+.assignment-summary span:not(.assignment-role),
+.assignment-card small {
+    color: #64748b;
+}
+
+.assignment-role {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    place-items: center;
+    border-radius: 50%;
+    color: #3730a3;
+    background: #e0e7ff;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.reassign-control select {
+    flex: 1;
+}
+
+.remove-judge-button {
+    color: #b91c1c;
+    border-color: #fca5a5;
+}
+
+.remove-judge-button:hover:not(:disabled) {
+    background: #fef2f2;
+}
+
+.reassign-note {
+    margin-top: -0.35rem;
+}
+
 .days-grid span,
 .days-grid small {
     color: #64748b;
@@ -216,5 +449,22 @@
 
     .next-step {
         flex-wrap: wrap;
+    }
+
+    .assignment-form {
+        grid-template-columns: 1fr;
+    }
+
+    .assignment-form .judge-selector {
+        grid-column: auto;
+    }
+
+    .judge-search-results {
+        grid-column: auto;
+    }
+
+    .reassign-control {
+        align-items: stretch;
+        flex-direction: column;
     }
 }

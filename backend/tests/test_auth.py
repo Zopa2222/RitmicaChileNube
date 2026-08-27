@@ -1,17 +1,22 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date
 
 from flask import jsonify
+from flask_jwt_extended import decode_token
 from sqlalchemy import select
 
 from app import create_app
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models import (
     AccountType,
     AuditLog,
+    Bench,
+    Category,
     Championship,
     ChampionshipStatus,
     CompetitionDay,
-    JudgeAccessWindow,
+    JudgeAssignment,
+    JudgeRole,
+    Session,
     SystemRole,
     User,
     UserStatus,
@@ -39,6 +44,53 @@ def login(client, username='ADMIN', password='Clave-Segura-123'):
         '/api/v1/auth/login',
         json={'username': username, 'password': password},
     )
+
+
+def create_active_judge_assignment(
+    admin,
+    judge,
+    status=ChampionshipStatus.ACTIVE,
+):
+    championship = Championship(
+        name='Clasificatorio Centro',
+        kind='CLASIFICATORIO',
+        zone='CENTRO',
+        start_date=date(2026, 8, 1),
+        status=status,
+        responsible_admin_id=admin.id,
+    )
+    db.session.add(championship)
+    db.session.flush()
+    competition_day = CompetitionDay(
+        championship_id=championship.id,
+        sequence=1,
+        competition_date=championship.start_date,
+        source_sheet_name='SABADO',
+    )
+    db.session.add(competition_day)
+    db.session.flush()
+    category = Category(
+        championship_id=championship.id,
+        competition_day_id=competition_day.id,
+        name='Senior',
+        bench=Bench.A,
+        session=Session.AM,
+        passing_order=0,
+    )
+    db.session.add(category)
+    db.session.flush()
+    db.session.add(JudgeAssignment(
+        championship_id=championship.id,
+        judge_user_id=judge.id,
+        competition_day_id=competition_day.id,
+        bench=Bench.A,
+        session=Session.AM,
+        role=JudgeRole.A,
+        effective_from_category_id=category.id,
+        assigned_by_user_id=admin.id,
+    ))
+    db.session.commit()
+    return championship
 
 
 def test_admin_can_login_read_session_and_logout(app, client):
@@ -100,7 +152,10 @@ def test_disabled_account_cannot_login(app, client):
     assert response.get_json()['code'] == 'ACCOUNT_DISABLED'
 
 
-def test_judge_requires_an_open_window_in_active_championship(app, client):
+def test_judge_can_reconnect_throughout_active_or_paused_championship(
+    app,
+    client,
+):
     admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
     judge = create_user(
         AccountType.JUDGE,
@@ -115,58 +170,95 @@ def test_judge_requires_an_open_window_in_active_championship(app, client):
 
     denied = login(client, username='JUEZ1')
     assert denied.status_code == 403
-    assert denied.get_json()['code'] == 'ACCESS_WINDOW_CLOSED'
+    assert denied.get_json()['code'] == 'JUDGE_ACCESS_NOT_AVAILABLE'
 
-    championship = Championship(
-        name='Clasificatorio Centro',
-        kind='CLASIFICATORIO',
-        zone='CENTRO',
-        start_date=date(2026, 8, 1),
-        status=ChampionshipStatus.ACTIVE,
-        responsible_admin_id=admin.id,
-    )
-    db.session.add(championship)
-    db.session.flush()
-    competition_day = CompetitionDay(
-        championship_id=championship.id,
-        sequence=1,
-        competition_date=championship.start_date,
-        source_sheet_name='SABADO',
-    )
-    db.session.add(competition_day)
-    db.session.flush()
-
-    now = datetime.now(timezone.utc)
-    access_window = JudgeAccessWindow(
-        judge_user_id=judge.id,
-        championship_id=championship.id,
-        competition_day_id=competition_day.id,
-        starts_at=now + timedelta(hours=1),
-        ends_at=now + timedelta(hours=9),
-    )
-    db.session.add(access_window)
-    db.session.commit()
-
-    future = login(client, username='JUEZ1')
-    assert future.status_code == 403
-    assert (
-        future.get_json()['next_access_window']['competition_day_id']
-        == str(competition_day.id)
-    )
-
-    access_window.starts_at = now - timedelta(minutes=5)
-    access_window.ends_at = now + timedelta(hours=8)
-    db.session.commit()
+    championship = create_active_judge_assignment(admin, judge)
 
     allowed = login(client, username='JUEZ1')
     assert allowed.status_code == 200
     assert client.get('/api/v1/test/judge-only').status_code == 200
 
-    access_window.ends_at = now - timedelta(minutes=1)
+    championship.status = ChampionshipStatus.PAUSED
     db.session.commit()
-    expired = client.get('/api/v1/test/judge-only')
-    assert expired.status_code == 403
-    assert expired.get_json()['code'] == 'ACCESS_WINDOW_CLOSED'
+    assert login(client, username='JUEZ1').status_code == 200
+    assert client.get('/api/v1/test/judge-only').status_code == 200
+
+    championship.status = ChampionshipStatus.CLOSED
+    db.session.commit()
+    closed = client.get('/api/v1/test/judge-only')
+    assert closed.status_code == 403
+    assert closed.get_json()['code'] == 'JUDGE_ACCESS_NOT_AVAILABLE'
+    assert client.get('/api/v1/auth/me').status_code == 401
+
+
+def test_judge_token_lasts_24_hours_and_admin_token_remains_8_hours(
+    app,
+    client,
+):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    judge = create_user(AccountType.JUDGE, 'JUEZ1', rut='111111111')
+    create_active_judge_assignment(admin, judge)
+
+    assert login(client, username='JUEZ1').status_code == 200
+    judge_cookie = client.get_cookie('ritmica_access', path='/api/')
+    judge_claims = decode_token(judge_cookie.value)
+    assert judge_claims['exp'] - judge_claims['iat'] == 24 * 3600
+
+    admin_client = app.test_client()
+    assert login(admin_client, username='ADMIN').status_code == 200
+    admin_cookie = admin_client.get_cookie('ritmica_access', path='/api/')
+    admin_claims = decode_token(admin_cookie.value)
+    assert admin_claims['exp'] - admin_claims['iat'] == 8 * 3600
+
+
+def rate_limited_test_app(ip_limit, username_limit):
+    return create_app('testing', {
+        'RATELIMIT_ENABLED': True,
+        'LOGIN_IP_RATE_LIMIT': ip_limit,
+        'LOGIN_USERNAME_FAILURE_RATE_LIMIT': username_limit,
+    })
+
+
+def test_login_rate_limits_shared_ip_without_combining_judge_attempts():
+    rate_limited_app = rate_limited_test_app(
+        '2 per minute',
+        '10 per minute',
+    )
+    with rate_limited_app.app_context():
+        db.create_all()
+        limiter.reset()
+        shared_network_client = rate_limited_app.test_client()
+
+        first = login(shared_network_client, username='JUEZ1')
+        second = login(shared_network_client, username='JUEZ2')
+        third = login(shared_network_client, username='JUEZ3')
+
+        assert first.status_code == 401
+        assert second.status_code == 401
+        assert third.status_code == 429
+        db.session.remove()
+        db.drop_all()
+
+
+def test_login_rate_limits_failed_attempts_for_one_account():
+    rate_limited_app = rate_limited_test_app(
+        '10 per minute',
+        '2 per minute',
+    )
+    with rate_limited_app.app_context():
+        db.create_all()
+        limiter.reset()
+        client = rate_limited_app.test_client()
+
+        first = login(client, username='JUEZ1')
+        second = login(client, username='JUEZ1')
+        third = login(client, username='JUEZ1')
+
+        assert first.status_code == 401
+        assert second.status_code == 401
+        assert third.status_code == 429
+        db.session.remove()
+        db.drop_all()
 
 
 def test_account_type_decorator_blocks_wrong_role(app):

@@ -13,7 +13,7 @@
                 </ng-container>
                 <ng-template #observer><p class="status">Esta asignación no registra nota.</p></ng-template>
             </ng-container>
-            <ng-template #waiting><p class="waiting">{{ context.state === 'WAITING_FOR_GYMNAST' ? 'Esperando que administración active una gimnasta.' : 'Tu asignación todavía no está habilitada para esta categoría.' }}</p></ng-template>
+            <ng-template #waiting><p class="waiting">{{ context.state === 'WAITING_FOR_CHAMPIONSHIP' ? 'El campeonato está pausado. Podrás puntuar cuando se reanude.' : context.state === 'WAITING_FOR_GYMNAST' ? 'Esperando que administración active una gimnasta.' : 'Tu asignación todavía no está habilitada para esta categoría.' }}</p></ng-template>
         </article>
     </section>
     <p *ngIf="!loading && !contexts.length" class="waiting">No tienes asignaciones activas en este momento.</p>

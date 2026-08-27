@@ -1,7 +1,7 @@
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.extensions import db
 from app.models import (
@@ -68,6 +68,43 @@ def categories_for_scope(competition_day_id, bench, session):
         )
         .order_by(Category.passing_order, Category.id)
     ).scalars().all()
+
+
+def next_gymnast_for_bench(competition_day_id, bench, gymnast_id):
+    """Return the gymnast immediately after the current bench routine."""
+    categories = db.session.execute(
+        select(Category)
+        .where(
+            Category.competition_day_id == competition_day_id,
+            Category.bench == bench,
+            Category.deleted_at.is_(None),
+        )
+        .order_by(Category.session, Category.passing_order, Category.id)
+    ).scalars().all()
+    gymnasts = []
+    for category in categories:
+        gymnasts.extend(
+            db.session.execute(
+                select(Gymnast)
+                .where(
+                    Gymnast.category_id == category.id,
+                    Gymnast.deleted_at.is_(None),
+                )
+                .order_by(Gymnast.passing_order, Gymnast.id)
+            ).scalars().all()
+        )
+    for index, gymnast in enumerate(gymnasts):
+        if gymnast.id == gymnast_id:
+            return (
+                gymnasts[index + 1]
+                if index + 1 < len(gymnasts)
+                else None
+            )
+    raise ChampionshipOperationError(
+        'La gimnasta activa ya no pertenece al orden de paso de la banca',
+        code='ACTIVE_GYMNAST_NOT_IN_ORDER',
+        status=409,
+    )
 
 
 def validate_judge(judge_id):
@@ -194,13 +231,6 @@ def create_judge_assignment(
     effective_from_category_id=None,
 ):
     ensure_configurable_championship(championship)
-    if championship.status != ChampionshipStatus.DRAFT:
-        raise ChampionshipOperationError(
-            'Las asignaciones iniciales solo se configuran en borrador; '
-            'use la reasignación durante el campeonato',
-            code='INITIAL_ASSIGNMENTS_DRAFT_ONLY',
-            status=409,
-        )
     categories = categories_for_scope(
         competition_day.id,
         bench,
@@ -213,15 +243,29 @@ def create_judge_assignment(
             status=409,
         )
 
-    categories_by_id = {category.id: category for category in categories}
-    if effective_from_category_id is None:
-        effective_from = categories[0]
+    if championship.status == ChampionshipStatus.DRAFT:
+        categories_by_id = {category.id: category for category in categories}
+        if effective_from_category_id is None:
+            effective_from = categories[0]
+        else:
+            effective_from = categories_by_id.get(effective_from_category_id)
+            if effective_from is None:
+                raise ChampionshipOperationError(
+                    'La categoría inicial no pertenece a la banca y jornada',
+                    code='INVALID_EFFECTIVE_CATEGORY',
+                )
     else:
-        effective_from = categories_by_id.get(effective_from_category_id)
+        effective_from, _ = next_category_for_scope(
+            championship.id,
+            competition_day.id,
+            bench,
+            session,
+        )
         if effective_from is None:
             raise ChampionshipOperationError(
-                'La categoría inicial no pertenece a la banca y jornada',
-                code='INVALID_EFFECTIVE_CATEGORY',
+                'No existe una categoría siguiente para iniciar la asignación',
+                code='NO_NEXT_CATEGORY',
+                status=409,
             )
 
     _validate_assignment_slot(
@@ -253,20 +297,25 @@ def create_judge_assignment(
     return assignment
 
 
-def next_category_for_reassignment(assignment):
+def next_category_for_scope(
+    championship_id,
+    competition_day_id,
+    bench,
+    session,
+):
     categories = categories_for_scope(
-        assignment.competition_day_id,
-        assignment.bench,
-        assignment.session,
+        competition_day_id,
+        bench,
+        session,
     )
     if not categories:
         return None, None
 
     current_activation = db.session.execute(
         select(BenchActivation).where(
-            BenchActivation.championship_id == assignment.championship_id,
-            BenchActivation.competition_day_id == assignment.competition_day_id,
-            BenchActivation.bench == assignment.bench,
+            BenchActivation.championship_id == championship_id,
+            BenchActivation.competition_day_id == competition_day_id,
+            BenchActivation.bench == bench,
             BenchActivation.deactivated_at.is_(None),
         )
     ).scalar_one_or_none()
@@ -278,7 +327,7 @@ def next_category_for_reassignment(assignment):
         .join(Gymnast, Gymnast.category_id == Category.id)
         .where(Gymnast.id == current_activation.gymnast_id)
     ).scalar_one()
-    if active_category.session == assignment.session:
+    if active_category.session == session:
         for index, category in enumerate(categories):
             if category.id == active_category.id:
                 return (
@@ -289,10 +338,19 @@ def next_category_for_reassignment(assignment):
                 )
     if (
         active_category.session == Session.AM
-        and assignment.session == Session.PM
+        and session == Session.PM
     ):
         return categories[0], None
     return None, categories[-1]
+
+
+def next_category_for_reassignment(assignment):
+    return next_category_for_scope(
+        assignment.championship_id,
+        assignment.competition_day_id,
+        assignment.bench,
+        assignment.session,
+    )
 
 
 def reassign_judge(
@@ -392,6 +450,75 @@ def reassign_judge(
         competition_day,
     )
     return new_assignment, effective_from
+
+
+def remove_judge_assignment(assignment, championship, competition_day):
+    """Remove an assignment without changing scores already in progress."""
+    ensure_configurable_championship(championship)
+    if assignment.superseded_at is not None:
+        raise ChampionshipOperationError(
+            'La asignación ya fue reemplazada o eliminada',
+            code='ASSIGNMENT_ALREADY_SUPERSEDED',
+            status=409,
+        )
+    judge_user_id = assignment.judge_user_id
+
+    if championship.status == ChampionshipStatus.DRAFT:
+        db.session.execute(
+            delete(ScoreEntry).where(
+                ScoreEntry.judge_assignment_id == assignment.id
+            )
+        )
+        db.session.delete(assignment)
+        db.session.flush()
+        recalculate_judge_access_window(
+            judge_user_id,
+            championship,
+            competition_day,
+        )
+        return None
+
+    effective_from, previous_category = next_category_for_reassignment(
+        assignment
+    )
+    if effective_from is None:
+        raise ChampionshipOperationError(
+            'No existe una categoría siguiente para eliminar la asignación',
+            code='NO_NEXT_CATEGORY',
+            status=409,
+        )
+
+    assignment.superseded_at = datetime.now(timezone.utc)
+    assignment.effective_to_category_id = (
+        previous_category.id if previous_category else None
+    )
+    future_category_ids = [
+        category.id
+        for category in categories_for_scope(
+            competition_day.id,
+            assignment.bench,
+            assignment.session,
+        )
+        if category.passing_order >= effective_from.passing_order
+    ]
+    if future_category_ids:
+        db.session.execute(
+            delete(ScoreEntry).where(
+                ScoreEntry.judge_assignment_id == assignment.id,
+                ScoreEntry.gymnast_id.in_(
+                    select(Gymnast.id).where(
+                        Gymnast.category_id.in_(future_category_ids)
+                    )
+                ),
+            )
+        )
+    db.session.flush()
+    recalculate_judge_access_window(
+        judge_user_id,
+        championship,
+        competition_day,
+    )
+    return effective_from
 
 
 def initialize_score_entries_for_assignment(assignment, scope_categories):

@@ -77,6 +77,7 @@ def championship_response(championship):
         'name': championship.name,
         'kind': championship.kind,
         'zone': championship.zone,
+        'qualifier_number': championship.qualifier_number,
         'start_date': championship.start_date.isoformat(),
         'timezone': championship.timezone,
         'status': championship.status.value,
@@ -132,6 +133,16 @@ def create_championship(current_user):
     kind = str(payload.get('kind', '')).strip().upper()
     zone = str(payload.get('zone', '')).strip().upper()
     raw_start_date = payload.get('start_date')
+    qualifier_number = payload.get('qualifier_number')
+    if zone not in {'NORTE', 'CENTRO', 'SUR'}:
+        return validation_error('La zona debe ser Norte, Centro o Sur')
+    if kind not in {'CLASIFICATORIO', 'FINAL'}:
+        return validation_error('El tipo debe ser Clasificatorio o Final')
+    if kind == 'CLASIFICATORIO':
+        if type(qualifier_number) is not int or qualifier_number not in (1, 2):
+            return validation_error('Selecciona Clasificatorio 1 o 2')
+    elif qualifier_number is not None:
+        return validation_error('Solo los clasificatorios admiten número')
 
     if not name or not kind or not zone or not raw_start_date:
         return validation_error(
@@ -158,6 +169,7 @@ def create_championship(current_user):
         name=name,
         kind=kind,
         zone=zone,
+        qualifier_number=qualifier_number,
         start_date=start_date,
         status=ChampionshipStatus.DRAFT,
         responsible_admin_id=responsible_admin_id,
@@ -175,6 +187,7 @@ def create_championship(current_user):
                 'name': name,
                 'kind': kind,
                 'zone': zone,
+                'qualifier_number': qualifier_number,
             },
         )
     )

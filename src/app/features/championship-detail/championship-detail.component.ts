@@ -21,6 +21,8 @@ import {
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
+import { CloudExportApiService } from '../../core/services/cloud-export-api.service';
+
 import { ApiErrorBody } from '../../core/models/api-error.model';
 import {
     ChampionshipStatus,
@@ -78,6 +80,7 @@ export class ChampionshipDetailComponent implements OnInit {
     };
     loading = true;
     processing = false;
+    downloading = false;
     managingAssignments = false;
     errorMessage = '';
 
@@ -94,6 +97,7 @@ export class ChampionshipDetailComponent implements OnInit {
         private readonly administrationApi: CloudAdministrationApiService,
         private readonly operationsApi: CloudOperationsApiService,
         private readonly judgesApi: CloudJudgeApiService,
+        private readonly exportApi: CloudExportApiService,
         private readonly snackBar: MatSnackBar
     ) { }
 
@@ -127,6 +131,22 @@ export class ChampionshipDetailComponent implements OnInit {
                 this.loading = false;
             }
         });
+    }
+
+    async download(format: 'excel' | 'pdf'): Promise<void> {
+        if (this.downloading) return;
+        this.downloading = true;
+        try {
+            const blob = await firstValueFrom(this.exportApi.download(this.championshipId, format));
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `resultados-${this.championshipId}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch {
+            this.snackBar.open('No fue posible generar la exportación.', 'Cerrar', { duration: 4500 });
+        } finally { this.downloading = false; }
     }
 
     async activate(): Promise<void> {
@@ -177,17 +197,17 @@ export class ChampionshipDetailComponent implements OnInit {
             return;
         }
         const confirmation = await Swal.fire({
-            title: 'Cerrar campeonato',
+            title: 'Terminar campeonato',
             html:
                 'Dejará de estar operativo y no podrá reactivarse.<br>'
                 + '<strong>Usa “Pausar” si la interrupción es temporal.</strong>',
             icon: 'warning',
             input: 'checkbox',
-            inputPlaceholder: 'Comprendo que el cierre es definitivo',
+            inputPlaceholder: 'Comprendo que la finalización es definitiva',
             inputValidator: (checked) =>
-                checked ? undefined : 'Debes confirmar el cierre definitivo',
+                checked ? undefined : 'Debes confirmar la finalización definitiva',
             showCancelButton: true,
-            confirmButtonText: 'Cerrar campeonato',
+            confirmButtonText: 'Terminar campeonato',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#dc2626'
         });
@@ -243,7 +263,7 @@ export class ChampionshipDetailComponent implements OnInit {
             DRAFT: 'Borrador',
             ACTIVE: 'Activo',
             PAUSED: 'Pausado',
-            CLOSED: 'Cerrado',
+            CLOSED: 'Terminado',
             PENDING_DELETION: 'Pendiente de eliminación',
             DELETED: 'Eliminado'
         };
@@ -251,9 +271,32 @@ export class ChampionshipDetailComponent implements OnInit {
     }
 
     assignmentsForSelectedDay(): JudgeAssignment[] {
-        return this.assignments.filter((assignment) =>
-            assignment.competition_day.id === this.selectedAssignmentDayId
-        );
+        return this.assignments
+            .filter((assignment) =>
+                assignment.competition_day.id === this.selectedAssignmentDayId
+            )
+            .sort((first, second) => {
+                const roleDifference = this.assignmentRoleOrder(first.role)
+                    - this.assignmentRoleOrder(second.role);
+                if (roleDifference !== 0) return roleDifference;
+
+                const categoryDifference = first.effective_from_category.passing_order
+                    - second.effective_from_category.passing_order;
+                if (categoryDifference !== 0) return categoryDifference;
+
+                return `${first.judge.last_name} ${first.judge.first_name}`.localeCompare(
+                    `${second.judge.last_name} ${second.judge.first_name}`,
+                    'es'
+                );
+            });
+    }
+
+    assignmentRoleLabel(assignment: JudgeAssignment): string {
+        const matchingAssignments = this.assignmentsForSelectedDay()
+            .filter((item) => item.role === assignment.role);
+        return `${assignment.role}${matchingAssignments.findIndex((item) =>
+            item.id === assignment.id
+        ) + 1}`;
     }
 
     get assignmentChangesAllowed(): boolean {
@@ -468,6 +511,10 @@ export class ChampionshipDetailComponent implements OnInit {
         }
     }
 
+    private assignmentRoleOrder(role: JudgeAssignment['role']): number {
+        return ['DB', 'DA', 'A', 'E', 'L', 'P'].indexOf(role);
+    }
+
     private async searchJudges(query: string, request: number): Promise<void> {
         try {
             const judges = await firstValueFrom(this.judgesApi.search(query));
@@ -518,7 +565,7 @@ export class ChampionshipDetailComponent implements OnInit {
                     ? 'Campeonato activo'
                     : action === 'pause'
                         ? 'Campeonato pausado'
-                        : 'Campeonato cerrado',
+                        : 'Campeonato terminado',
                 'Cerrar',
                 { duration: 3500 }
             );

@@ -64,7 +64,8 @@ export class SetupComponent implements OnInit {
     readonly championshipForm = this.formBuilder.nonNullable.group({
         name: ['', [Validators.required, Validators.maxLength(180)]],
         kind: ['CLASIFICATORIO', Validators.required],
-        zone: ['', [Validators.required, Validators.maxLength(120)]],
+        zone: ['', Validators.required],
+        qualifier_number: [1 as 1 | 2, Validators.required],
         start_date: ['', Validators.required]
     });
 
@@ -132,7 +133,8 @@ export class SetupComponent implements OnInit {
         this.championshipsApi.create({
             name: value.name.trim(),
             kind: value.kind,
-            zone: value.zone.trim(),
+            zone: value.zone,
+            qualifier_number: value.kind === 'CLASIFICATORIO' ? value.qualifier_number : null,
             start_date: value.start_date
         }).subscribe({
             next: (championship) => {

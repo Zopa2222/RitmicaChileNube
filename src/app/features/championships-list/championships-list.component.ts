@@ -91,6 +91,7 @@ export class ChampionshipsListComponent implements OnInit {
                     championship.name,
                     championship.kind,
                     championship.zone,
+                    championship.qualifier_number?.toString() ?? '',
                     this.statusLabel(championship.status)
                 ].some((value) =>
                     value.toLocaleLowerCase('es-CL').includes(term)

@@ -24,6 +24,7 @@
         <a
             mat-stroked-button
             [routerLink]="['/championships', active.id]">
+            <mat-icon>scoreboard</mat-icon>
             Ver operación
         </a>
     </section>
@@ -58,6 +59,7 @@
         <h2>No pudimos cargar los campeonatos</h2>
         <p>{{ loadError }}</p>
         <button mat-stroked-button type="button" (click)="loadChampionships()">
+            <mat-icon>refresh</mat-icon>
             Reintentar
         </button>
     </section>
@@ -77,6 +79,7 @@
             mat-flat-button
             color="primary"
             routerLink="/setup">
+            <mat-icon>add</mat-icon>
             Crear campeonato
         </a>
     </section>
@@ -103,7 +106,7 @@
                 <dl>
                     <div>
                         <dt>Tipo</dt>
-                        <dd>{{ championship.kind }}</dd>
+                        <dd>{{ championship.kind }} {{ championship.qualifier_number }}</dd>
                     </div>
                     <div>
                         <dt>Zona</dt>
@@ -152,12 +155,14 @@
                     *ngIf="championship.status !== 'CLOSED'
                         && championship.status !== 'PENDING_DELETION'
                         && championship.status !== 'DELETED'"
-                    mat-button
+                    mat-stroked-button
+                    color="warn"
                     class="danger-action"
                     type="button"
                     (click)="close(championship)"
                     [disabled]="actionId !== null">
-                    Cerrar
+                    <mat-icon>stop_circle</mat-icon>
+                    Terminar
                 </button>
             </mat-card-actions>
         </mat-card>

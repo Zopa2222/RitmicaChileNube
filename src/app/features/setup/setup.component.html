@@ -69,14 +69,22 @@
 
                         <mat-form-field appearance="outline">
                             <mat-label>Zona</mat-label>
-                            <input
-                                matInput
-                                formControlName="zone"
-                                placeholder="Centro, Norte, Sur…">
+                            <mat-select formControlName="zone">
+                                <mat-option value="NORTE">Norte</mat-option>
+                                <mat-option value="CENTRO">Centro</mat-option>
+                                <mat-option value="SUR">Sur</mat-option>
+                            </mat-select>
                             <mat-error>Ingresa la zona</mat-error>
                         </mat-form-field>
                     </div>
 
+                    <mat-form-field appearance="outline" *ngIf="championshipForm.controls.kind.value === 'CLASIFICATORIO'">
+                        <mat-label>Clasificatorio</mat-label>
+                        <mat-select formControlName="qualifier_number">
+                            <mat-option [value]="1">Clasificatorio 1</mat-option>
+                            <mat-option [value]="2">Clasificatorio 2</mat-option>
+                        </mat-select>
+                    </mat-form-field>
                     <mat-form-field appearance="outline">
                         <mat-label>Fecha inicial</mat-label>
                         <input
@@ -127,7 +135,7 @@
                 <span>Borrador creado</span>
                 <h2>{{ championship.name }}</h2>
                 <p>
-                    {{ championship.kind }} · Zona {{ championship.zone }} ·
+                    {{ championship.kind }} {{ championship.qualifier_number }} · Zona {{ championship.zone }} ·
                     {{ championship.start_date | date:'dd/MM/yyyy':'UTC' }}
                 </p>
             </div>

@@ -202,10 +202,13 @@ def recalculate_judge_access_window(
     local_timezone = ZoneInfo(championship.timezone)
     starts_at = datetime.combine(
         competition_day.competition_date,
-        time(hour=8),
+        time(hour=12 if sessions == {Session.PM} else 8),
         tzinfo=local_timezone,
     )
-    duration_hours = 16 if sessions == {Session.AM, Session.PM} else 8
+    duration_hours = (
+        16 if sessions == {Session.AM, Session.PM}
+        else 12 if sessions == {Session.PM} else 8
+    )
     ends_at = starts_at + timedelta(hours=duration_hours)
 
     if access_window is None:
@@ -614,6 +617,7 @@ def activate_gymnast(
     bench,
     gymnast,
     activated_by_user_id,
+    allow_replacement=False,
 ):
     if championship.status != ChampionshipStatus.ACTIVE:
         raise ChampionshipOperationError(
@@ -651,6 +655,13 @@ def activate_gymnast(
         and current_activation.gymnast_id == gymnast.id
     ):
         return current_activation, False, category
+    if current_activation is not None and not allow_replacement:
+        raise ChampionshipOperationError(
+            'Primero debe publicar la gimnasta activa con '
+            '“Pasar siguiente”',
+            code='ACTIVE_GYMNAST_MUST_BE_PUBLISHED',
+            status=409,
+        )
 
     now = datetime.now(timezone.utc)
     if current_activation is not None:

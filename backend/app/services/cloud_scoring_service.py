@@ -107,7 +107,7 @@ def calculate_total_score(da, db_score, a_values, e_values, discount):
 
 
 def has_area_difference(values):
-    """Apply the canonical >0.6 warning rule used by A and E."""
+    """Return whether A/E judges fail the area's consensus rule."""
     scores = sorted(parse_score_value(value) for value in values)
     if len(scores) < 2:
         return False
@@ -116,11 +116,13 @@ def has_area_difference(values):
     if len(scores) == 2:
         return scores[1] - scores[0] > threshold
     if len(scores) == 3:
-        return any(
-            right - left > threshold
+        # One outlying judge is allowed when the other two agree.
+        return not any(
+            right - left <= threshold
             for left, right in zip(scores, scores[1:])
         )
 
+    # With four or more judges, discard the lowest and highest values.
     middle = scores[1:-1]
     return middle[-1] - middle[0] > threshold
 

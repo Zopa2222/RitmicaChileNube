@@ -2,55 +2,113 @@
     <a mat-button [routerLink]="['/championships', championshipId]">
         <mat-icon>arrow_back</mat-icon> Campeonato
     </a>
+
     <header>
         <div>
             <span class="eyebrow">Cabina administrativa</span>
             <h1>Operación en vivo</h1>
-            <p>Activa una gimnasta por banca. Cada cambio genera una nueva activación segura.</p>
+            <p>Usa el botón a la izquierda del nombre para evaluar una gimnasta en vivo. Edita sus notas directamente en la tabla.</p>
         </div>
         <a mat-stroked-button [routerLink]="['/championships', championshipId, 'export']">
             <mat-icon>download</mat-icon> Exportar
         </a>
     </header>
 
-    <p class="message" *ngIf="message">{{ message }}</p>
+    <p class="message" [class.success]="message.startsWith('Puntajes publicados')" *ngIf="message">
+        {{ message }}
+    </p>
     <section *ngIf="loading" class="state">Cargando operación…</section>
+
     <ng-container *ngIf="!loading">
         <label class="day-picker" *ngIf="days.length">
             Día de competencia
-            <select [(ngModel)]="selectedDayId" (change)="loadDay()">
+            <select [disabled]="activatingGymnastId !== null" [(ngModel)]="selectedDayId" (change)="loadDay()">
                 <option *ngFor="let day of days" [value]="day.id">
                     Día {{ day.sequence }} · {{ day.date }} · {{ day.sheet_name }}
                 </option>
             </select>
         </label>
 
-        <section class="bench-grid" *ngIf="operations as data">
-            <mat-card *ngFor="let bench of benches">
-                <mat-card-header>
-                    <mat-card-title>Banca {{ bench }}</mat-card-title>
-                    <mat-card-subtitle *ngIf="data.benches[bench].active as active">
-                        Activa: {{ active.full_name }}
-                    </mat-card-subtitle>
-                    <mat-card-subtitle *ngIf="!data.benches[bench].active">Sin gimnasta activa</mat-card-subtitle>
-                </mat-card-header>
-                <mat-card-content>
-                    <section *ngFor="let category of data.benches[bench].categories" class="category">
-                        <div class="category-heading">
-                            <strong>{{ category.name }}</strong><small>{{ category.session }}</small>
-                            <a mat-button [routerLink]="['/championships', championshipId, 'categories', category.id, 'scoring']">Planilla</a>
+        <ng-container *ngIf="operations as data">
+            <section class="live-controls" aria-label="Controles de operación en vivo">
+                <mat-button-toggle-group
+                    class="bench-tabs"
+                    aria-label="Bancas"
+                    [value]="selectedBench"
+                    [disabled]="activatingGymnastId !== null"
+                    (change)="selectBench($event.value)">
+                    <mat-button-toggle
+                        *ngFor="let bench of benches"
+                        [value]="bench">
+                        <span>Banca {{ bench }}</span>
+                        <small *ngIf="data.benches[bench].active as active">{{ active.full_name }}</small>
+                        <small *ngIf="!data.benches[bench].active">Sin gimnasta activa</small>
+                    </mat-button-toggle>
+                </mat-button-toggle-group>
+
+                <section class="active-scorebar" [class.empty]="!data.benches[selectedBench].active">
+                    <ng-container *ngIf="data.benches[selectedBench].active as active; else noActive">
+                        <div class="score-list" aria-label="Puntajes de la gimnasta activa">
+                            <div><small>D.A.</small><strong>{{ active.score.da_score }}</strong></div>
+                            <div><small>D.B.</small><strong>{{ active.score.db_score }}</strong></div>
+                            <div><small>A</small><strong>{{ active.score.a_score }}</strong></div>
+                            <div><small>E</small><strong>{{ active.score.e_score }}</strong></div>
+                            <div><small>Desc.</small><strong>{{ active.score.discount }}</strong></div>
+                            <div class="total"><small>Total</small><strong>{{ active.score.total_score }}</strong></div>
                         </div>
-                        <button
-                            *ngFor="let gymnast of category.gymnasts"
-                            mat-stroked-button
-                            type="button"
-                            [class.active]="data.benches[bench].active?.gymnast_id === gymnast.id"
-                            (click)="activate(bench, gymnast.id)">
-                            {{ gymnast.full_name }} <span *ngIf="gymnast.club_name">· {{ gymnast.club_name }}</span>
-                        </button>
+
+                        <div class="advance-action">
+                            <strong>{{ active.full_name }}</strong>
+                            <span
+                                class="score-status"
+                                [class.complete]="active.score.calculation_status === 'COMPLETE'">
+                                {{ active.score.calculation_status === 'COMPLETE' ? 'Puntaje completo' : (active.pending_count ? active.pending_count + ' notas pendientes' : 'Puntaje provisional') }}
+                            </span>
+                            <small *ngIf="nextGymnast(selectedBench) as next">
+                                Sigue: {{ next.gymnast.full_name }}
+                            </small>
+                            <small *ngIf="!nextGymnast(selectedBench)">Última gimnasta de la banca</small>
+                        </div>
+                    </ng-container>
+
+                    <ng-template #noActive>
+                        <div class="empty-state">
+                            <mat-icon>sports_gymnastics</mat-icon>
+                            <div>
+                                <strong>Sin gimnasta activa en Banca {{ selectedBench }}</strong>
+                                <small>Selecciona la primera gimnasta del orden de paso.</small>
+                            </div>
+                        </div>
+                    </ng-template>
+                </section>
+            </section>
+
+            <mat-card class="bench-panel" role="tabpanel">
+                <mat-card-content>
+                    <section *ngFor="let category of data.benches[selectedBench].categories; trackBy: trackCategory" class="category">
+                        <div class="category-heading">
+                            <div>
+                                <strong>{{ category.name }}</strong>
+                                <small>{{ category.session }}</small>
+                            </div>
+                            <a
+                                mat-button
+                                [routerLink]="['/championships', championshipId, 'categories', category.id, 'scoring']">
+                                Planilla
+                            </a>
+                        </div>
+                        <app-cloud-scoring
+                            [embedded]="true"
+                            [championshipId]="championshipId"
+                            [categoryId]="category.id"
+                            [activeGymnastId]="data.benches[selectedBench].active?.gymnast_id ?? null"
+                            [activationPending]="activatingGymnastId !== null"
+                            (activateGymnast)="activate(selectedBench, $event)"
+                            (scoresChanged)="loadDay(true)">
+                        </app-cloud-scoring>
                     </section>
                 </mat-card-content>
             </mat-card>
-        </section>
+        </ng-container>
     </ng-container>
 </main>

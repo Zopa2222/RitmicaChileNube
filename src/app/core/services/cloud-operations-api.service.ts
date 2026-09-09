@@ -44,6 +44,48 @@ export class CloudOperationsApiService {
         );
     }
 
+    passNext(
+        championshipId: string,
+        competitionDayId: string,
+        bench: Bench
+    ): Observable<{
+        publication: {
+            id: string;
+            category_id: string;
+            gymnast_id: string;
+            mode: 'UP_TO_GYMNAST';
+            published_at: string;
+            result_count: number;
+        };
+        next_activation: {
+            id: string;
+            gymnast_id: string;
+            full_name: string;
+            category_id: string;
+        } | null;
+    }> {
+        return this.http.post<{
+            publication: {
+                id: string;
+                category_id: string;
+                gymnast_id: string;
+                mode: 'UP_TO_GYMNAST';
+                published_at: string;
+                result_count: number;
+            };
+            next_activation: {
+                id: string;
+                gymnast_id: string;
+                full_name: string;
+                category_id: string;
+            } | null;
+        }>(
+            `${this.apiUrl}/${championshipId}/competition-days`
+            + `/${competitionDayId}/benches/${bench}/pass-next`,
+            {}
+        );
+    }
+
     listAssignments(championshipId: string): Observable<JudgeAssignment[]> {
         return this.http.get<{ assignments: JudgeAssignment[] }>(
             `${this.apiUrl}/${championshipId}/judge-assignments`

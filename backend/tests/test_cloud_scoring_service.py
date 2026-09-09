@@ -166,7 +166,8 @@ def test_area_warning_uses_canonical_rule():
     assert not has_area_difference(['1.00', '1.60'])
     assert has_area_difference(['1.00', '1.61'])
     assert not has_area_difference(['1.00', '1.60', '2.20'])
-    assert has_area_difference(['1.00', '1.61', '2.20'])
+    assert not has_area_difference(['1.00', '1.50', '6.00'])
+    assert has_area_difference(['1.00', '1.61', '2.22'])
     assert not has_area_difference(['0.00', '1.00', '1.50', '3.00'])
     assert has_area_difference(['0.00', '1.00', '1.61', '3.00'])
 

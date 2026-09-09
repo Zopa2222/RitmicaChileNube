@@ -1,24 +1,80 @@
-<main class="scoring-page">
-    <a mat-button [routerLink]="['/championships', championshipId, 'operations']"><mat-icon>arrow_back</mat-icon> Operación</a>
+<section class="scoring-page" [class.embedded]="embedded">
+    <a *ngIf="!embedded" mat-button [routerLink]="['/championships', championshipId, 'operations']"><mat-icon>arrow_back</mat-icon> Operación</a>
     <header *ngIf="scoring as data">
         <div><span class="eyebrow">Planilla cloud</span><h1>{{ data.category.name }}</h1>
             <p>Banca {{ data.category.bench }} · {{ data.category.session }} · {{ data.competition_day.date }}</p></div>
-        <div class="actions"><button mat-stroked-button (click)="addGymnast()">Agregar gimnasta</button><button mat-stroked-button (click)="orderByScore()">Ordenar por puntaje</button><button mat-flat-button color="primary" (click)="publish()">Publicar categoría</button></div>
+        <div class="actions">
+            <button mat-stroked-button type="button" (click)="addGymnast()">
+                <mat-icon>person_add</mat-icon>
+                Agregar gimnasta
+            </button>
+            <button *ngIf="!embedded" mat-stroked-button type="button" (click)="orderByScore()">
+                <mat-icon>sort</mat-icon>
+                Ordenar por puntaje
+            </button>
+            <button mat-flat-button color="primary" type="button" (click)="publish()">
+                <mat-icon>publish</mat-icon>
+                Publicar categoría
+            </button>
+        </div>
     </header>
     <p class="message" *ngIf="message">{{ message }}</p>
     <p *ngIf="loading" class="state">Cargando planilla…</p>
     <div class="table-wrap" *ngIf="scoring as data">
         <table>
-            <thead><tr><th>Gimnasta</th><th *ngFor="let assignment of data.assignments">{{ assignment.role }} · {{ assignment.judge.first_name }}</th><th>DA</th><th>DB</th><th>A</th><th>E</th><th>Desc.</th><th>Total</th><th></th></tr></thead>
-            <tbody><tr *ngFor="let gymnast of data.gymnasts" [class.active-row]="gymnast.is_active">
-                <td><strong>{{ gymnast.full_name }}</strong><small>{{ gymnast.club_name }}</small><em *ngIf="gymnast.is_active">Activa</em></td>
-                <td *ngFor="let score of gymnast.scores" [class.pending]="score.submission_status === 'PENDING'"><label>{{ roleLabel(score) }}<input [(ngModel)]="draftValues[score.id]" (change)="saveScore(score.id)" [disabled]="savingId === score.id"></label></td>
-                <td [class.warning]="gymnast.role_resolutions.DA.warning_active"><button mat-button (click)="resolve(gymnast, 'DA')">{{ gymnast.summary.da_score }}</button></td>
-                <td [class.warning]="gymnast.role_resolutions.DB.warning_active"><button mat-button (click)="resolve(gymnast, 'DB')">{{ gymnast.summary.db_score }}</button></td>
-                <td [class.warning]="gymnast.area_warnings.A">{{ gymnast.summary.a_score }}</td><td [class.warning]="gymnast.area_warnings.E">{{ gymnast.summary.e_score }}</td>
-                <td><input #discount [value]="gymnast.summary.discount" (change)="setDiscount(gymnast, discount.value)"></td><td><strong>{{ gymnast.summary.total_score }}</strong><small>{{ gymnast.summary.calculation_status }}</small></td>
-                <td><button mat-icon-button aria-label="Eliminar" (click)="removeGymnast(gymnast)"><mat-icon>delete</mat-icon></button></td>
+            <thead><tr><th>Gimnasta</th><ng-container *ngFor="let role of scoreAreas"><th *ngFor="let assignment of assignmentsForRole(role)">{{ assignmentLabel(assignment) }}</th><th>{{ role }} total</th></ng-container><th>Desc.</th><th>Total</th><th></th></tr></thead>
+            <tbody
+                cdkDropList
+                [cdkDropListData]="data.gymnasts"
+                [cdkDropListDisabled]="reordering"
+                (cdkDropListDropped)="reorderGymnasts($event)">
+                <tr
+                    *ngFor="let gymnast of data.gymnasts; trackBy: trackGymnast"
+                    cdkDrag
+                    [cdkDragDisabled]="reordering"
+                    (cdkDragStarted)="dragging = true"
+                    (cdkDragEnded)="dragging = false"
+                    [class.active-row]="embedded ? activeGymnastId === gymnast.id : gymnast.is_active">
+                <td><div class="gymnast-identity">
+                    <button *ngIf="embedded" mat-icon-button color="primary" type="button"
+                        [attr.aria-label]="'Evaluar en vivo a ' + gymnast.full_name"
+                        [attr.aria-pressed]="activeGymnastId === gymnast.id"
+                        [disabled]="activationPending || activeGymnastId === gymnast.id"
+                        (click)="activateGymnast.emit(gymnast.id)">
+                        <mat-icon>{{ activeGymnastId === gymnast.id ? 'radio_button_checked' : 'play_circle' }}</mat-icon>
+                    </button>
+                    <button
+                        mat-icon-button
+                        cdkDragHandle
+                        type="button"
+                        class="reorder-handle"
+                        [disabled]="reordering"
+                        [attr.aria-label]="'Mover a ' + gymnast.full_name">
+                        <mat-icon>drag_indicator</mat-icon>
+                    </button>
+                    <div><strong>{{ gymnast.full_name }}</strong><small>{{ gymnast.club_name }}</small><em *ngIf="embedded ? activeGymnastId === gymnast.id : gymnast.is_active">En vivo</em></div>
+                </div></td>
+                <td [attr.data-label]="roleLabel(score)" *ngFor="let score of scoresForRole(gymnast, 'DB')" [class.pending]="score.submission_status === 'PENDING'"><input inputmode="decimal" [attr.aria-label]="roleLabel(score) + ' de ' + gymnast.full_name" [(ngModel)]="draftValues[score.id]" (change)="saveScore(score.id)" [disabled]="savingId === score.id"></td>
+                <td
+                    data-label="DB total"
+                    [class.warning]="gymnast.role_resolutions.DB.warning_active"
+                    [class.score-error]="gymnast.role_resolutions.DB.warning_active">
+                    {{ gymnast.role_resolutions.DB.warning_active ? 'Error' : gymnast.summary.db_score }}
+                </td>
+                <td [attr.data-label]="roleLabel(score)" *ngFor="let score of scoresForRole(gymnast, 'DA')" [class.pending]="score.submission_status === 'PENDING'"><input inputmode="decimal" [attr.aria-label]="roleLabel(score) + ' de ' + gymnast.full_name" [(ngModel)]="draftValues[score.id]" (change)="saveScore(score.id)" [disabled]="savingId === score.id"></td>
+                <td
+                    data-label="DA total"
+                    [class.warning]="gymnast.role_resolutions.DA.warning_active"
+                    [class.score-error]="gymnast.role_resolutions.DA.warning_active">
+                    {{ gymnast.role_resolutions.DA.warning_active ? 'Error' : gymnast.summary.da_score }}
+                </td>
+                <td [attr.data-label]="roleLabel(score)" *ngFor="let score of scoresForRole(gymnast, 'A')" [class.pending]="score.submission_status === 'PENDING'"><input inputmode="decimal" [attr.aria-label]="roleLabel(score) + ' de ' + gymnast.full_name" [(ngModel)]="draftValues[score.id]" (change)="saveScore(score.id)" [disabled]="savingId === score.id"></td>
+                <td data-label="A total" [class.warning]="gymnast.area_warnings.A">{{ gymnast.summary.a_score }}</td>
+                <td [attr.data-label]="roleLabel(score)" *ngFor="let score of scoresForRole(gymnast, 'E')" [class.pending]="score.submission_status === 'PENDING'"><input inputmode="decimal" [attr.aria-label]="roleLabel(score) + ' de ' + gymnast.full_name" [(ngModel)]="draftValues[score.id]" (change)="saveScore(score.id)" [disabled]="savingId === score.id"></td>
+                <td data-label="E total" [class.warning]="gymnast.area_warnings.E">{{ gymnast.summary.e_score }}</td>
+                <td data-label="Desc."><input #discount [value]="gymnast.summary.discount" (change)="setDiscount(gymnast, discount.value)"></td><td data-label="Total" class="total-cell"><strong>{{ gymnast.summary.total_score }}</strong><small>{{ gymnast.summary.calculation_status }}</small></td>
+                <td class="row-actions"><button mat-icon-button aria-label="Eliminar" (click)="removeGymnast(gymnast)"><mat-icon>delete</mat-icon></button></td>
             </tr></tbody>
         </table>
     </div>
-</main>
+</section>

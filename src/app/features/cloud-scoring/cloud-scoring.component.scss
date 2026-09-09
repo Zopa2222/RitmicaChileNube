@@ -1,1 +1,71 @@
-.scoring-page { max-width: 1440px; margin: 0 auto; padding: 2rem; } header { display:flex; justify-content:space-between; gap:1rem; align-items:center; }.actions { display:flex; gap:.5rem; flex-wrap:wrap; }.eyebrow, small, em { display:block; color:#64748b; }.message { color:#b91c1c; }.state { padding:2rem; text-align:center; }.table-wrap { overflow:auto; background:white; border-radius:.75rem; box-shadow:0 1px 4px #cbd5e1; } table { border-collapse:collapse; min-width:1150px; width:100%; } th,td { border-bottom:1px solid #e2e8f0; padding:.65rem; text-align:center; vertical-align:middle; } th { position:sticky; top:0; background:#1e293b; color:white; } td:first-child { min-width:180px; text-align:left; } input { width:72px; padding:.35rem; border:1px solid #cbd5e1; border-radius:.3rem; }.pending { background:#fff7ed; }.warning { background:#fee2e2; }.active-row { box-shadow:inset 4px 0 #15803d; } em { color:#15803d; font-weight:800; } @media(max-width:600px){ .scoring-page{padding:1rem} header{align-items:flex-start;flex-direction:column} }
+.scoring-page { max-width: 1440px; margin: 0 auto; padding: 2rem; } header { display:flex; justify-content:space-between; gap:1rem; align-items:center; }.actions { display:flex; gap:.5rem; flex-wrap:wrap; }.eyebrow, small, em { display:block; color:#64748b; }.message { color:#b91c1c; }.state { padding:2rem; text-align:center; }.table-wrap { overflow:auto; background:white; border-radius:.75rem; box-shadow:0 1px 4px #cbd5e1; } table { border-collapse:collapse; min-width:1150px; width:100%; } th,td { border-bottom:1px solid #e2e8f0; padding:.65rem; text-align:center; vertical-align:middle; } th { position:sticky; top:0; background:#1e293b; color:white; } td:first-child { min-width:180px; text-align:left; } input { width:72px; padding:.35rem; border:1px solid #cbd5e1; border-radius:.3rem; background:white; font:inherit; text-align:center; }.summary-input { font-weight:700; }.pending { background:#fff7ed; }.warning { background:#fee2e2; }.active-row { box-shadow:inset 4px 0 #15803d; } em { color:#15803d; font-weight:800; } @media(max-width:600px){ .scoring-page{padding:1rem} header{align-items:flex-start;flex-direction:column} }
+
+.scoring-page.embedded { padding: 0; max-width: none; min-width: 0; }
+.embedded header { margin-bottom: 1rem; }
+.embedded header > div:first-child { display: none; }
+.gymnast-identity { display: flex; align-items: center; gap: .5rem; }
+.gymnast-identity button { flex-shrink: 0; }
+tr.active-row { background: #dbeafe; box-shadow: inset 4px 0 #2563eb; }
+tr.active-row em { color: #1d4ed8; }
+
+:host { display: block; min-width: 0; max-width: 100%; }
+.table-wrap { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+table { min-width: 0; font-size: .8125rem; }
+th, td { padding: .35rem .25rem; }
+th { white-space: nowrap; }
+input { box-sizing: border-box; width: 54px; padding: .3rem .15rem; font-variant-numeric: tabular-nums; }
+td:first-child { min-width: 170px; max-width: 230px; }
+.gymnast-identity { gap: .25rem; }
+.gymnast-identity strong { font-size: .8125rem; line-height: 1.25; }
+.gymnast-identity small, td > small { font-size: .6875rem; }
+.embedded .actions { gap: .25rem; }
+.embedded header { margin-bottom: .5rem; }
+
+/* Wrap each gymnast's scores rather than requiring horizontal scrolling. */
+.embedded .table-wrap { overflow: visible; box-shadow: none; background: transparent; }
+.embedded table, .embedded tbody { display: block; width: 100%; }
+.embedded thead { display: none; }
+.embedded tbody tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    gap: .4rem;
+    padding: .65rem;
+    margin-bottom: .75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .65rem;
+    background: white;
+}
+.embedded tbody tr.active-row { background: #dbeafe; border-color: #2563eb; }
+.embedded td { display: block; min-width: 0; padding: .25rem; border: 0; border-radius: .3rem; }
+.embedded td:first-child { grid-column: 1 / -1; max-width: none; min-width: 0; padding: 0 0 .3rem; }
+.embedded td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-size: .7rem; font-weight: 700; color: #475569; }
+.embedded input { width: 100%; min-width: 0; height: 32px; }
+.embedded .gymnast-identity > div { min-width: 0; overflow-wrap: anywhere; }
+.embedded .total-cell { background: #eff6ff; }
+.embedded .total-cell small { overflow-wrap: anywhere; font-size: .6rem; }
+.embedded .row-actions { display: flex; align-items: center; justify-content: center; }
+.score-error { color: #dc2626; font-weight: 800; }
+.reorder-handle { cursor: grab; color: #64748b; }
+.reorder-handle:active { cursor: grabbing; }
+.cdk-drag-preview {
+    box-sizing: border-box;
+    border: 1px solid #2563eb;
+    border-radius: .65rem;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 20%);
+}
+.cdk-drag-placeholder { opacity: .35; }
+
+/* Keep the existing score cards, with one horizontal score line. */
+.embedded tbody tr {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(64px, 1fr);
+    width: max-content;
+    min-width: 100%;
+    box-sizing: border-box;
+}
+.embedded td:first-child { grid-column: auto; width: 210px; align-self: center; }
+.embedded .table-wrap { overflow-x: auto; }
+.embedded table, .embedded tbody { width: max-content; min-width: 100%; }
+.embedded td[data-label]::before { white-space: nowrap; }
+.embedded tbody tr { grid-template-columns: 210px; grid-auto-columns: 68px; }

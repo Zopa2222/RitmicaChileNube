@@ -848,15 +848,18 @@ def competition_day_operations(
             db.session.get(Gymnast, activation.gymnast_id)
             if activation else None
         )
+        active_category = (
+            db.session.get(Category, active_gymnast.category_id)
+            if active_gymnast else None
+        )
         benches[bench.value] = {
             'active': (
-                {
-                    'activation_id': str(activation.id),
-                    'gymnast_id': str(active_gymnast.id),
-                    'full_name': active_gymnast.full_name,
-                    'activated_at': activation.activated_at.isoformat(),
-                }
-                if activation else None
+                active_score_response(
+                    activation,
+                    active_gymnast,
+                    active_category,
+                )
+                if activation and active_gymnast and active_category else None
             ),
             'categories': [],
         }
@@ -943,6 +946,7 @@ def set_active_gymnast(
             bench,
             gymnast,
             current_user.id,
+            allow_replacement=True,
         )
         if changed:
             audit(
@@ -989,3 +993,152 @@ def set_active_gymnast(
         },
         'changed': changed,
     })
+
+
+@bp.post(
+    '/championships/<championship_id>/competition-days/'
+    '<competition_day_id>/benches/<bench_value>/pass-next'
+)
+@account_types_required(*ADMIN_ACCOUNT_TYPES)
+def publish_and_pass_next(
+    current_user,
+    championship_id,
+    competition_day_id,
+    bench_value,
+):
+    championship = get_championship_or_404(championship_id)
+    if championship is None:
+        return validation_error(
+            'Campeonato no encontrado',
+            code='CHAMPIONSHIP_NOT_FOUND',
+            status=404,
+        )
+    try:
+        competition_day = get_competition_day(
+            championship,
+            parse_uuid_value(competition_day_id, 'competition_day_id'),
+        )
+        bench = parse_enum_value(Bench, bench_value, 'bench')
+        championship = db.session.execute(
+            select(Championship)
+            .where(Championship.id == championship.id)
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        ).scalar_one()
+        if championship.status != ChampionshipStatus.ACTIVE:
+            raise ChampionshipOperationError(
+                'El campeonato debe estar activo para pasar de gimnasta',
+                code='CHAMPIONSHIP_NOT_ACTIVE',
+                status=409,
+            )
+        activation = db.session.execute(
+            select(BenchActivation)
+            .where(
+                BenchActivation.championship_id == championship.id,
+                BenchActivation.competition_day_id == competition_day.id,
+                BenchActivation.bench == bench,
+                BenchActivation.deactivated_at.is_(None),
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+        if activation is None:
+            raise ChampionshipOperationError(
+                'No hay una gimnasta activa para publicar',
+                code='ACTIVE_GYMNAST_NOT_FOUND',
+                status=409,
+            )
+        gymnast = db.session.get(Gymnast, activation.gymnast_id)
+        category = (
+            db.session.get(Category, gymnast.category_id)
+            if gymnast else None
+        )
+        if (
+            gymnast is None
+            or category is None
+            or gymnast.deleted_at is not None
+            or category.deleted_at is not None
+            or category.championship_id != championship.id
+            or category.competition_day_id != competition_day.id
+            or category.bench != bench
+        ):
+            raise ChampionshipOperationError(
+                'La gimnasta activa ya no pertenece a esta banca',
+                code='ACTIVE_GYMNAST_SCOPE_MISMATCH',
+                status=409,
+            )
+
+        batch, results = publish_up_to_gymnast(
+            championship,
+            category,
+            gymnast,
+            current_user.id,
+        )
+        next_gymnast = next_gymnast_for_bench(
+            competition_day.id,
+            bench,
+            gymnast.id,
+        )
+        next_activation = None
+        next_category = None
+        if next_gymnast is not None:
+            next_activation, _, next_category = activate_gymnast(
+                championship,
+                competition_day,
+                bench,
+                next_gymnast,
+                current_user.id,
+                allow_replacement=True,
+            )
+        else:
+            activation.deactivated_at = datetime.now(timezone.utc)
+            db.session.flush()
+
+        audit(
+            current_user,
+            'GYMNAST_PUBLISHED_AND_ADVANCED',
+            championship,
+            'PUBLICATION_BATCH',
+            batch.id,
+            {
+                'competition_day_id': str(competition_day.id),
+                'bench': bench.value,
+                'category_id': str(category.id),
+                'gymnast_id': str(gymnast.id),
+                'mode': batch.mode.value,
+                'result_count': len(results),
+                'next_gymnast_id': (
+                    str(next_gymnast.id) if next_gymnast else None
+                ),
+            },
+        )
+        db.session.commit()
+    except ChampionshipOperationError as error:
+        db.session.rollback()
+        return operation_error(error)
+    except IntegrityError:
+        db.session.rollback()
+        return validation_error(
+            'No fue posible publicar y avanzar por un cambio simultáneo',
+            code='PASS_NEXT_CONFLICT',
+            status=409,
+        )
+
+    return jsonify({
+        'publication': {
+            'id': str(batch.id),
+            'category_id': str(category.id),
+            'gymnast_id': str(gymnast.id),
+            'mode': batch.mode.value,
+            'published_at': batch.published_at.isoformat(),
+            'result_count': len(results),
+        },
+        'next_activation': (
+            {
+                'id': str(next_activation.id),
+                'gymnast_id': str(next_gymnast.id),
+                'full_name': next_gymnast.full_name,
+                'category_id': str(next_category.id),
+            }
+            if next_activation and next_gymnast and next_category else None
+        ),
+    }), 201

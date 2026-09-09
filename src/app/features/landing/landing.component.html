@@ -19,7 +19,7 @@
         <!-- Action Grid -->
         <div class="action-grid">
             <!-- Card: Create Championship -->
-            <div class="action-card create-card" (click)="createNewChampionship()">
+            <article class="action-card create-card">
                 <div class="card-content">
                     <div class="icon-wrapper">
                         <mat-icon>add_circle</mat-icon>
@@ -28,12 +28,15 @@
                     <p>Configura un nuevo torneo, define categorías y asigna jueces.</p>
                 </div>
                 <div class="card-action">
-                    <span class="fake-button">Comenzar</span>
+                    <a mat-flat-button color="primary" routerLink="/setup">
+                        <mat-icon>add</mat-icon>
+                        Comenzar
+                    </a>
                 </div>
-            </div>
+            </article>
 
             <!-- Card: View Championships -->
-            <div class="action-card view-card" (click)="viewChampionships()">
+            <article class="action-card view-card">
                 <div class="card-content">
                     <div class="icon-wrapper">
                         <mat-icon>list_alt</mat-icon>
@@ -42,11 +45,14 @@
                     <p>Accede al historial de torneos, revisa puntajes y exporta resultados.</p>
                 </div>
                 <div class="card-action">
-                    <span class="fake-button">Explorar</span>
+                    <a mat-flat-button color="primary" routerLink="/championships">
+                        <mat-icon>list_alt</mat-icon>
+                        Explorar
+                    </a>
                 </div>
-            </div>
+            </article>
 
-            <div class="action-card public-card" (click)="viewPublicResults()">
+            <article class="action-card public-card">
                 <div class="card-content">
                     <div class="icon-wrapper">
                         <mat-icon>leaderboard</mat-icon>
@@ -55,9 +61,12 @@
                     <p>Consulta el campeonato activo y sus últimos resultados publicados.</p>
                 </div>
                 <div class="card-action">
-                    <span class="fake-button">Ver resultados</span>
+                    <a mat-flat-button color="primary" routerLink="/resultados">
+                        <mat-icon>leaderboard</mat-icon>
+                        Ver resultados
+                    </a>
                 </div>
-            </div>
+            </article>
 
         </div>
     </div>

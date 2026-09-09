@@ -7,6 +7,8 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import {
     Subject,
@@ -34,7 +36,13 @@ import { AuthService } from '../../core/auth/auth.service';
 @Component({
     selector: 'app-public-results',
     standalone: true,
-    imports: [CommonModule, ReactiveFormsModule, RouterLink],
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatIconModule,
+        ReactiveFormsModule,
+        RouterLink
+    ],
     templateUrl: './public-results.component.html',
     styleUrls: ['./public-results.component.scss']
 })

@@ -39,9 +39,7 @@
 }
 
 .login-link {
-    padding: 0.65rem 1rem;
     border: 1px solid #d7deea;
-    border-radius: 999px;
     background: rgba(255, 255, 255, 0.72);
     color: #344054;
     font-size: 0.84rem;
@@ -99,21 +97,13 @@
     font-size: 0.95rem;
 }
 
-.refresh-button,
-.primary-button {
-    min-height: 44px;
-    padding: 0.7rem 1.1rem;
+.refresh-button {
     border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: 12px;
     color: #fff;
     background: rgba(255, 255, 255, 0.13);
-    font: inherit;
-    font-weight: 750;
-    cursor: pointer;
 
     &:disabled {
         opacity: 0.55;
-        cursor: wait;
     }
 }
 
@@ -164,11 +154,7 @@
 }
 
 .clear-button {
-    border: 0;
-    background: transparent;
     color: #667085;
-    font-size: 1.4rem;
-    cursor: pointer;
 }
 
 .results-layout {
@@ -227,7 +213,9 @@
 
 .category-item {
     width: 100%;
-    padding: 0.85rem;
+    min-height: 68px;
+    height: auto !important;
+    padding: 0.85rem !important;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -237,8 +225,7 @@
     background: #f8fafc;
     color: #344054;
     text-align: left;
-    cursor: pointer;
-    transition: 150ms ease;
+    transition: border-color 150ms ease, background-color 150ms ease;
 
     &:hover {
         border-color: #c7d2fe;
@@ -420,11 +407,7 @@
     font-weight: 850;
 }
 
-.state-panel .primary-button {
-    margin-top: 0.5rem;
-    border-color: #4f46e5;
-    background: #4f46e5;
-}
+.state-panel .mat-mdc-button { margin-top: 0.5rem; }
 
 .empty-results {
     min-height: 330px;
@@ -434,13 +417,7 @@
     min-height: 220px;
     font-size: 0.84rem;
 
-    button {
-        border: 0;
-        background: transparent;
-        color: #4f46e5;
-        font-weight: 750;
-        cursor: pointer;
-    }
+    .mat-mdc-button { margin-top: 0.25rem; }
 }
 
 .inline-loading {

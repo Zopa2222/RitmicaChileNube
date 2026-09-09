@@ -1,6 +1,12 @@
 import { AsyncPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component } from '@angular/core';
+import {
+    Component,
+    ElementRef,
+    HostListener,
+    OnDestroy,
+    ViewChild
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import {
@@ -34,7 +40,7 @@ import {
     ],
     template: `
         @if (user$ | async; as user) {
-            <mat-toolbar class="session-toolbar">
+            <mat-toolbar #sessionToolbar class="session-toolbar">
                 <a
                     class="toolbar-brand brand-lockup"
                     [routerLink]="homeRoute(user.account_type)"
@@ -89,7 +95,7 @@ import {
             z-index: 1000;
             min-height: 76px;
             padding: 0 clamp(1rem, 3vw, 2.5rem);
-            background: rgba(255, 255, 255, 0.96);
+            background: #fff;
             border-bottom: 1px solid #e2e8f0;
             box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
         }
@@ -126,18 +132,64 @@ import {
             }
             .toolbar-brand .brand-lockup__subtitle,
             .identity,
-            .logout-label {
+            .logout-label,
+            .administration-link span {
                 display: none;
             }
         }
     `]
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
+    private toolbarObserver?: ResizeObserver;
+    private toolbarElement?: HTMLElement;
+
+    @ViewChild('sessionToolbar', { read: ElementRef })
+    set sessionToolbar(element: ElementRef<HTMLElement> | undefined) {
+        this.toolbarObserver?.disconnect();
+        this.toolbarElement = element?.nativeElement;
+        if (!this.toolbarElement) {
+            document.documentElement.style.setProperty(
+                '--session-toolbar-visible-height', '0px'
+            );
+            return;
+        }
+        this.toolbarObserver = new ResizeObserver(() => {
+            document.documentElement.style.setProperty(
+                '--session-toolbar-height', `${this.toolbarElement?.getBoundingClientRect().height ?? 0}px`
+            );
+            this.updateToolbarVisibleHeight();
+        });
+        this.toolbarObserver.observe(this.toolbarElement);
+        this.updateToolbarVisibleHeight();
+    }
+
+    @HostListener('window:scroll')
+    onWindowScroll(): void {
+        this.updateToolbarVisibleHeight();
+    }
+
+    ngOnDestroy(): void {
+        this.toolbarObserver?.disconnect();
+    }
+
     title = 'Gymnastics Scoring System';
     readonly user$ = this.authService.user$;
     readonly roleLabel = accountTypeLabel;
     readonly homeRoute = homeRouteForAccountType;
     loggingOut = false;
+
+    private updateToolbarVisibleHeight(): void {
+        const toolbar = this.toolbarElement;
+        if (!toolbar) return;
+        const bounds = toolbar.getBoundingClientRect();
+        const visibleHeight = Math.min(
+            bounds.height,
+            Math.max(0, bounds.bottom)
+        );
+        document.documentElement.style.setProperty(
+            '--session-toolbar-visible-height', `${visibleHeight}px`
+        );
+    }
 
     constructor(
         private readonly authService: AuthService,

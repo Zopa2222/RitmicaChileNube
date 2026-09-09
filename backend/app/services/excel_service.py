@@ -362,8 +362,11 @@ def export_to_pdf(championship_name, categories_data):
             story.append(Spacer(1, 0.3*cm))
             continue
 
-        score_columns = _get_score_columns(sorted_gymnasts[0])
-        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Puntaje A', 'Puntaje E', 'Total']
+        score_columns = [
+            column for column in _get_score_columns(sorted_gymnasts[0])
+            if not column.startswith(('A', 'E'))
+        ]
+        headers = ['Pos.', 'Nombre', 'Club'] + score_columns + ['Total']
 
         table_data = [headers]
         for position, gymnast in enumerate(sorted_gymnasts, 1):
@@ -375,8 +378,6 @@ def export_to_pdf(championship_name, categories_data):
             for col in score_columns:
                 val = _get_score_value(gymnast, col)
                 row.append(f"{val:.2f}" if isinstance(val, float) else str(val))
-            row.append(f"{calculate_a_score(gymnast):.2f}")
-            row.append(f"{calculate_e_score(gymnast):.2f}")
             row.append(f"{gymnast.get('puntajeTotal', 0.0):.2f}")
             table_data.append(row)
 

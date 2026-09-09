@@ -31,15 +31,17 @@
             <h2>Campeonatos</h2>
             <p>Consulta los campeonatos disponibles y continúa su operación.</p>
             <a mat-flat-button color="primary" routerLink="/championships">
+                <mat-icon>emoji_events</mat-icon>
                 Abrir campeonatos
             </a>
         </mat-card>
 
-        <mat-card *ngIf="user.account_type === 'SUPER_ADMIN'">
+        <mat-card>
             <mat-icon>groups</mat-icon>
             <h2>Jueces</h2>
             <p>Crea, edita, elimina y administra las credenciales de los jueces.</p>
-            <a mat-stroked-button color="primary" routerLink="/superadministracion/jueces">
+            <a mat-stroked-button color="primary" [routerLink]="user.account_type === 'SUPER_ADMIN' ? '/superadministracion/jueces' : '/administracion/jueces'">
+                <mat-icon>groups</mat-icon>
                 Administrar jueces
             </a>
         </mat-card>
@@ -49,6 +51,7 @@
             <h2>Nuevo campeonato</h2>
             <p>Comienza la configuración y carga del orden de paso.</p>
             <a mat-stroked-button color="primary" routerLink="/setup">
+                <mat-icon>add_circle</mat-icon>
                 Crear campeonato
             </a>
         </mat-card>
@@ -58,6 +61,7 @@
             <h2>Vista pública</h2>
             <p>Revisa exactamente lo que pueden consultar los espectadores.</p>
             <a mat-stroked-button routerLink="/resultados">
+                <mat-icon>leaderboard</mat-icon>
                 Ver resultados
             </a>
         </mat-card>
@@ -67,6 +71,7 @@
             <h2>Configuración</h2>
             <p>Cambia la contraseña del administrador y revisa los logs operativos.</p>
             <a mat-stroked-button color="primary" routerLink="/superadministracion/configuracion">
+                <mat-icon>settings</mat-icon>
                 Abrir configuración
             </a>
         </mat-card>
@@ -78,7 +83,10 @@
             <div>
                 <h2>Acceso de juez habilitado</h2>
                 <p>Solo se mostrarán tus asignaciones y la gimnasta activa.</p>
-                <a mat-flat-button color="primary" routerLink="/cabina-juez">Abrir cabina</a>
+                <a mat-flat-button color="primary" routerLink="/cabina-juez">
+                    <mat-icon>scoreboard</mat-icon>
+                    Abrir cabina
+                </a>
             </div>
         </section>
     </ng-template>

@@ -308,6 +308,7 @@ def test_old_activation_is_rejected_after_switching_away_and_back(app, client):
         Bench.A,
         context['gymnast_two'],
         context['admin'].id,
+        allow_replacement=True,
     )
     db.session.commit()
     new_activation, changed, _ = activate_gymnast(
@@ -316,6 +317,7 @@ def test_old_activation_is_rejected_after_switching_away_and_back(app, client):
         Bench.A,
         context['gymnast_one'],
         context['admin'].id,
+        allow_replacement=True,
     )
     assert changed
     db.session.commit()

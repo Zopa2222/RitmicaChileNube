@@ -68,6 +68,7 @@ export class CloudAdministrationComponent implements OnInit, OnDestroy {
             return;
         }
         void this.loadJudges();
+        this.logTimer = window.setInterval(() => void this.loadJudges(), 10000);
     }
 
     ngOnDestroy(): void {

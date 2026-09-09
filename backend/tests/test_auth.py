@@ -1,4 +1,16 @@
-from datetime import date
+from datetime import date, datetime, timezone
+
+import pytest
+from app.security import access
+
+
+@pytest.fixture(autouse=True)
+def fixed_shift_time(monkeypatch):
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 8, 1, 12, tzinfo=timezone.utc)
+    monkeypatch.setattr(access, 'datetime', Clock)
 
 from flask import jsonify
 from flask_jwt_extended import decode_token
@@ -209,6 +221,50 @@ def test_judge_token_lasts_24_hours_and_admin_token_remains_8_hours(
     admin_cookie = admin_client.get_cookie('ritmica_access', path='/api/')
     admin_claims = decode_token(admin_cookie.value)
     assert admin_claims['exp'] - admin_claims['iat'] == 8 * 3600
+
+
+def test_judge_shift_boundaries_and_existing_session_expiry(app, client):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    judge = create_user(AccountType.JUDGE, 'JUEZ1', rut='111111111')
+    create_active_judge_assignment(admin, judge)
+    assignment = db.session.execute(select(JudgeAssignment)).scalar_one()
+    # Chile in August: UTC-4. AM 08:00–16:00; PM 12:00–00:00.
+    def allowed(hour):
+        return access.judge_has_championship_access(
+            judge.id, datetime(2026, 8, 1, hour, tzinfo=timezone.utc))
+    assert not allowed(11)
+    assert allowed(12)
+    assert allowed(19)
+    assert not allowed(20)
+    assert login(client, username='JUEZ1').status_code == 200
+    assignment.session = Session.PM
+    db.session.commit()
+    from app.services.championship_operations_service import recalculate_judge_access_window
+    window = recalculate_judge_access_window(
+        judge.id, db.session.get(Championship, assignment.championship_id),
+        db.session.get(CompetitionDay, assignment.competition_day_id),
+    )
+    assert window.starts_at == datetime(2026, 8, 1, 16, tzinfo=timezone.utc)
+    assert window.ends_at == datetime(2026, 8, 2, 4, tzinfo=timezone.utc)
+    assert not allowed(12)
+    assert not allowed(15)
+    assert allowed(16)
+    assert allowed(20)
+    assert client.get('/api/v1/auth/me').status_code == 401
+    db.session.add(JudgeAssignment(
+        championship_id=assignment.championship_id, judge_user_id=judge.id,
+        competition_day_id=assignment.competition_day_id, bench=Bench.A,
+        session=Session.AM, role=JudgeRole.A,
+        effective_from_category_id=assignment.effective_from_category_id,
+        assigned_by_user_id=admin.id,
+    ))
+    db.session.commit()
+    assert allowed(12) and allowed(20)
+    assert not access.judge_has_championship_access(
+        judge.id, datetime(2026, 8, 2, 4, tzinfo=timezone.utc))
+    judge.status = UserStatus.DISABLED
+    db.session.commit()
+    assert login(client, username='JUEZ1').get_json()['code'] == 'ACCOUNT_DISABLED'
 
 
 def rate_limited_test_app(ip_limit, username_limit):

@@ -1,7 +1,8 @@
 """Administrative cloud routes that are intentionally unavailable to judges.
 
-The operations routes keep the competition running; this module contains the
-rare, high-impact actions that are restricted to the super administrator.
+The operations routes keep the competition running. Judge management is
+available to both administrator account types, while global configuration
+remains exclusive to the super administrator.
 """
 
 import uuid
@@ -31,6 +32,7 @@ from app.routes.cloud_championships import (
 )
 from app.security.passwords import hash_password
 from app.security.permissions import account_types_required
+from app.security.access import judge_has_championship_access
 from app.services.file_storage_service import FileStorageError, delete_object
 from app.services.judge_account_service import (
     JudgeAccountError,
@@ -60,6 +62,7 @@ def _judge_response(judge):
         'rut': judge.rut_normalized,
         'username': judge.username,
         'status': judge.status.value,
+        'access_active': judge.status == UserStatus.ACTIVE and judge_has_championship_access(judge.id),
         'last_login_at': (
             judge.last_login_at.isoformat() if judge.last_login_at else None
         ),
@@ -123,7 +126,7 @@ def _as_utc(value):
 
 
 @bp.get('/admin/judges')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def list_judges(current_user):
     query = str(request.args.get('query', '')).strip().upper()
     statement = select(User).where(User.account_type == AccountType.JUDGE)
@@ -142,7 +145,7 @@ def list_judges(current_user):
 
 
 @bp.post('/admin/judges')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def create_judge(current_user):
     payload = request.get_json(silent=True) or {}
     try:
@@ -165,7 +168,7 @@ def create_judge(current_user):
 
 
 @bp.patch('/admin/judges/<judge_id>')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def update_judge(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
@@ -205,7 +208,7 @@ def update_judge(current_user, judge_id):
 
 
 @bp.delete('/admin/judges/<judge_id>')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def delete_judge(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
@@ -241,7 +244,7 @@ def delete_judge(current_user, judge_id):
 
 
 @bp.post('/admin/judges/<judge_id>/deactivate')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def deactivate_judge(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
@@ -253,7 +256,7 @@ def deactivate_judge(current_user, judge_id):
 
 
 @bp.post('/admin/judges/<judge_id>/activate')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def activate_judge(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
@@ -265,7 +268,7 @@ def activate_judge(current_user, judge_id):
 
 
 @bp.post('/admin/judges/<judge_id>/credentials/regenerate')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def regenerate_judge_credentials(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
@@ -288,7 +291,7 @@ def regenerate_judge_credentials(current_user, judge_id):
 
 
 @bp.post('/admin/judges/credentials/regenerate-batch')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def regenerate_judge_credentials_batch(current_user):
     """Regenerate a selected group atomically without persisting plain text."""
     payload = request.get_json(silent=True) or {}

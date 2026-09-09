@@ -56,7 +56,13 @@ export const routes: Routes = [
         path: 'superadministracion/jueces',
         component: CloudAdministrationComponent,
         canActivate: [authGuard, roleGuard],
-        data: { roles: ['SUPER_ADMIN'], section: 'judges' }
+        data: { roles: ADMIN_ROLES, section: 'judges' }
+    },
+    {
+        path: 'administracion/jueces',
+        component: CloudAdministrationComponent,
+        canActivate: [authGuard, roleGuard],
+        data: { roles: ADMIN_ROLES, section: 'judges' }
     },
     {
         path: 'cabina-juez',

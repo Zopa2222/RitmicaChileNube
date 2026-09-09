@@ -1,5 +1,4 @@
-from datetime import datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -8,45 +7,33 @@ from app.models import (
     Championship,
     ChampionshipStatus,
     JudgeAccessWindow,
-    JudgeAssignment,
-    CompetitionDay,
-    Session,
 )
 
 
 def judge_has_championship_access(user_id, now=None):
     """Whether a judge may use the cabin while a championship is operating.
 
-    A current assignment grants access only during its local shift,
-    including pauses. Manual account disabling is checked by authentication.
+    A current assignment grants access only while its persisted access window
+    is open. Manual account disabling is checked by authentication.
     """
     current_time = now or datetime.now(timezone.utc)
-    assignments = db.session.execute(
-        select(JudgeAssignment, Championship, CompetitionDay)
+    return db.session.execute(
+        select(JudgeAccessWindow.id)
         .join(
             Championship,
-            Championship.id == JudgeAssignment.championship_id,
+            Championship.id == JudgeAccessWindow.championship_id,
         )
-        .join(CompetitionDay, CompetitionDay.id == JudgeAssignment.competition_day_id)
         .where(
-            JudgeAssignment.judge_user_id == user_id,
-            JudgeAssignment.superseded_at.is_(None),
+            JudgeAccessWindow.judge_user_id == user_id,
+            JudgeAccessWindow.starts_at <= current_time,
+            JudgeAccessWindow.ends_at > current_time,
             Championship.status.in_([
                 ChampionshipStatus.ACTIVE,
                 ChampionshipStatus.PAUSED,
             ]),
         )
-    ).all()
-    for assignment, championship, day in assignments:
-        start = datetime.combine(
-            day.competition_date,
-            time(hour=8 if assignment.session == Session.AM else 12),
-            tzinfo=ZoneInfo(championship.timezone),
-        )
-        duration = 8 if assignment.session == Session.AM else 12
-        if start <= current_time < start + timedelta(hours=duration):
-            return True
-    return False
+        .limit(1)
+    ).scalar_one_or_none() is not None
 
 
 def judge_has_open_access_window(user_id, now=None):

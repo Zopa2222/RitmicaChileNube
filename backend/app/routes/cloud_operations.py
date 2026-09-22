@@ -19,7 +19,10 @@ from app.models import (
     JudgeAccessWindow,
     JudgeAssignment,
     JudgeRole,
+    ScoreEntry,
+    ScoreSummary,
     Session,
+    SubmissionStatus,
     User,
 )
 from app.routes.cloud_championships import (
@@ -33,6 +36,8 @@ from app.services.championship_operations_service import (
     activate_gymnast,
     create_judge_assignment,
     get_competition_day,
+    next_gymnast_for_bench,
+    remove_judge_assignment,
     reassign_judge,
     validate_judge,
 )
@@ -41,6 +46,7 @@ from app.services.judge_account_service import (
     create_judge_account,
     find_judge,
 )
+from app.services.publication_service import publish_up_to_gymnast
 
 
 bp = Blueprint('cloud_operations', __name__, url_prefix='/api/v1')
@@ -76,6 +82,56 @@ def operation_error(error):
         code=error.code,
         status=error.status,
     )
+
+
+def decimal_response(value):
+    return format(value, '.2f')
+
+
+def active_score_response(activation, gymnast, category):
+    summary = db.session.get(ScoreSummary, gymnast.id)
+    pending_count = db.session.scalar(
+        select(func.count(ScoreEntry.id)).where(
+            ScoreEntry.gymnast_id == gymnast.id,
+            ScoreEntry.activation_id == activation.id,
+            ScoreEntry.submission_status == SubmissionStatus.PENDING,
+        )
+    ) or 0
+    score = {
+        'da_score': '0.00',
+        'db_score': '0.00',
+        'a_score': '10.00',
+        'e_score': '10.00',
+        'discount': '0.00',
+        'total_score': '20.00',
+        'calculation_status': 'PROVISIONAL',
+        'calculated_at': None,
+    }
+    if summary is not None:
+        score = {
+            'da_score': decimal_response(summary.da_score),
+            'db_score': decimal_response(summary.db_score),
+            'a_score': decimal_response(summary.a_score),
+            'e_score': decimal_response(summary.e_score),
+            'discount': decimal_response(summary.discount),
+            'total_score': decimal_response(summary.total_score),
+            'calculation_status': summary.calculation_status.value,
+            'calculated_at': summary.calculated_at.isoformat(),
+        }
+    return {
+        'activation_id': str(activation.id),
+        'gymnast_id': str(gymnast.id),
+        'full_name': gymnast.full_name,
+        'club_name': gymnast.club_name,
+        'activated_at': activation.activated_at.isoformat(),
+        'category': {
+            'id': str(category.id),
+            'name': category.name,
+            'session': category.session.value,
+        },
+        'score': score,
+        'pending_count': pending_count,
+    }
 
 
 def judge_response(judge):
@@ -665,6 +721,76 @@ def reassign_judge_route(
     }), 201
 
 
+@bp.delete(
+    '/championships/<championship_id>/judge-assignments/'
+    '<assignment_id>'
+)
+@account_types_required(*ADMIN_ACCOUNT_TYPES)
+def remove_judge_assignment_route(
+    current_user,
+    championship_id,
+    assignment_id,
+):
+    championship = get_championship_or_404(championship_id)
+    if championship is None:
+        return validation_error(
+            'Campeonato no encontrado',
+            code='CHAMPIONSHIP_NOT_FOUND',
+            status=404,
+        )
+    try:
+        assignment = get_assignment_for_championship(
+            championship,
+            assignment_id,
+        )
+        competition_day = get_competition_day(
+            championship,
+            assignment.competition_day_id,
+        )
+        judge_user_id = assignment.judge_user_id
+        assignment_audit_details = {
+            'day_id': str(competition_day.id),
+            'bench': assignment.bench.value,
+            'session': assignment.session.value,
+            'role': assignment.role.value,
+        }
+        effective_from = remove_judge_assignment(
+            assignment,
+            championship,
+            competition_day,
+        )
+        audit(
+            current_user,
+            'JUDGE_ASSIGNMENT_REMOVED',
+            championship,
+            'JUDGE_ASSIGNMENT',
+            assignment.id,
+            {
+                'judge_user_id': str(judge_user_id),
+                **assignment_audit_details,
+                'effective_from_category_id': (
+                    str(effective_from.id) if effective_from else None
+                ),
+            },
+        )
+        db.session.commit()
+    except ChampionshipOperationError as error:
+        db.session.rollback()
+        return operation_error(error)
+
+    return jsonify({
+        'removed': True,
+        'effective_from_category': (
+            {
+                'id': str(effective_from.id),
+                'name': effective_from.name,
+                'passing_order': effective_from.passing_order,
+            }
+            if effective_from else None
+        ),
+    })
+
+
 @bp.get(
     '/championships/<championship_id>/competition-days/'
     '<competition_day_id>/operations'
@@ -722,15 +848,18 @@ def competition_day_operations(
             db.session.get(Gymnast, activation.gymnast_id)
             if activation else None
         )
+        active_category = (
+            db.session.get(Category, active_gymnast.category_id)
+            if active_gymnast else None
+        )
         benches[bench.value] = {
             'active': (
-                {
-                    'activation_id': str(activation.id),
-                    'gymnast_id': str(active_gymnast.id),
-                    'full_name': active_gymnast.full_name,
-                    'activated_at': activation.activated_at.isoformat(),
-                }
-                if activation else None
+                active_score_response(
+                    activation,
+                    active_gymnast,
+                    active_category,
+                )
+                if activation and active_gymnast and active_category else None
             ),
             'categories': [],
         }
@@ -817,6 +946,7 @@ def set_active_gymnast(
             bench,
             gymnast,
             current_user.id,
+            allow_replacement=True,
         )
         if changed:
             audit(
@@ -863,3 +993,152 @@ def set_active_gymnast(
         },
         'changed': changed,
     })
+
+
+@bp.post(
+    '/championships/<championship_id>/competition-days/'
+    '<competition_day_id>/benches/<bench_value>/pass-next'
+)
+@account_types_required(*ADMIN_ACCOUNT_TYPES)
+def publish_and_pass_next(
+    current_user,
+    championship_id,
+    competition_day_id,
+    bench_value,
+):
+    championship = get_championship_or_404(championship_id)
+    if championship is None:
+        return validation_error(
+            'Campeonato no encontrado',
+            code='CHAMPIONSHIP_NOT_FOUND',
+            status=404,
+        )
+    try:
+        competition_day = get_competition_day(
+            championship,
+            parse_uuid_value(competition_day_id, 'competition_day_id'),
+        )
+        bench = parse_enum_value(Bench, bench_value, 'bench')
+        championship = db.session.execute(
+            select(Championship)
+            .where(Championship.id == championship.id)
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        ).scalar_one()
+        if championship.status != ChampionshipStatus.ACTIVE:
+            raise ChampionshipOperationError(
+                'El campeonato debe estar activo para pasar de gimnasta',
+                code='CHAMPIONSHIP_NOT_ACTIVE',
+                status=409,
+            )
+        activation = db.session.execute(
+            select(BenchActivation)
+            .where(
+                BenchActivation.championship_id == championship.id,
+                BenchActivation.competition_day_id == competition_day.id,
+                BenchActivation.bench == bench,
+                BenchActivation.deactivated_at.is_(None),
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+        if activation is None:
+            raise ChampionshipOperationError(
+                'No hay una gimnasta activa para publicar',
+                code='ACTIVE_GYMNAST_NOT_FOUND',
+                status=409,
+            )
+        gymnast = db.session.get(Gymnast, activation.gymnast_id)
+        category = (
+            db.session.get(Category, gymnast.category_id)
+            if gymnast else None
+        )
+        if (
+            gymnast is None
+            or category is None
+            or gymnast.deleted_at is not None
+            or category.deleted_at is not None
+            or category.championship_id != championship.id
+            or category.competition_day_id != competition_day.id
+            or category.bench != bench
+        ):
+            raise ChampionshipOperationError(
+                'La gimnasta activa ya no pertenece a esta banca',
+                code='ACTIVE_GYMNAST_SCOPE_MISMATCH',
+                status=409,
+            )
+
+        batch, results = publish_up_to_gymnast(
+            championship,
+            category,
+            gymnast,
+            current_user.id,
+        )
+        next_gymnast = next_gymnast_for_bench(
+            competition_day.id,
+            bench,
+            gymnast.id,
+        )
+        next_activation = None
+        next_category = None
+        if next_gymnast is not None:
+            next_activation, _, next_category = activate_gymnast(
+                championship,
+                competition_day,
+                bench,
+                next_gymnast,
+                current_user.id,
+                allow_replacement=True,
+            )
+        else:
+            activation.deactivated_at = datetime.now(timezone.utc)
+            db.session.flush()
+
+        audit(
+            current_user,
+            'GYMNAST_PUBLISHED_AND_ADVANCED',
+            championship,
+            'PUBLICATION_BATCH',
+            batch.id,
+            {
+                'competition_day_id': str(competition_day.id),
+                'bench': bench.value,
+                'category_id': str(category.id),
+                'gymnast_id': str(gymnast.id),
+                'mode': batch.mode.value,
+                'result_count': len(results),
+                'next_gymnast_id': (
+                    str(next_gymnast.id) if next_gymnast else None
+                ),
+            },
+        )
+        db.session.commit()
+    except ChampionshipOperationError as error:
+        db.session.rollback()
+        return operation_error(error)
+    except IntegrityError:
+        db.session.rollback()
+        return validation_error(
+            'No fue posible publicar y avanzar por un cambio simultáneo',
+            code='PASS_NEXT_CONFLICT',
+            status=409,
+        )
+
+    return jsonify({
+        'publication': {
+            'id': str(batch.id),
+            'category_id': str(category.id),
+            'gymnast_id': str(gymnast.id),
+            'mode': batch.mode.value,
+            'published_at': batch.published_at.isoformat(),
+            'result_count': len(results),
+        },
+        'next_activation': (
+            {
+                'id': str(next_activation.id),
+                'gymnast_id': str(next_gymnast.id),
+                'full_name': next_gymnast.full_name,
+                'category_id': str(next_category.id),
+            }
+            if next_activation and next_gymnast and next_category else None
+        ),
+    }), 201

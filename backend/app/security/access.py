@@ -10,6 +10,32 @@ from app.models import (
 )
 
 
+def judge_has_championship_access(user_id, now=None):
+    """Whether a judge may use the cabin while a championship is operating.
+
+    A current assignment grants access only while its persisted access window
+    is open. Manual account disabling is checked by authentication.
+    """
+    current_time = now or datetime.now(timezone.utc)
+    return db.session.execute(
+        select(JudgeAccessWindow.id)
+        .join(
+            Championship,
+            Championship.id == JudgeAccessWindow.championship_id,
+        )
+        .where(
+            JudgeAccessWindow.judge_user_id == user_id,
+            JudgeAccessWindow.starts_at <= current_time,
+            JudgeAccessWindow.ends_at > current_time,
+            Championship.status.in_([
+                ChampionshipStatus.ACTIVE,
+                ChampionshipStatus.PAUSED,
+            ]),
+        )
+        .limit(1)
+    ).scalar_one_or_none() is not None
+
+
 def judge_has_open_access_window(user_id, now=None):
     current_time = now or datetime.now(timezone.utc)
     return db.session.execute(

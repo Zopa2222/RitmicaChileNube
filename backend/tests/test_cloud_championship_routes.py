@@ -82,6 +82,7 @@ def test_admin_imports_preview_and_confirms_order_of_passage(app, client):
         json={
             'name': 'Clasificatorio Centro',
             'kind': 'clasificatorio',
+            'qualifier_number': 1,
             'zone': 'centro',
             'start_date': '2026-08-01',
         },
@@ -168,3 +169,35 @@ def test_cloud_championship_routes_require_login(client):
 
     assert response.status_code == 401
     assert response.get_json()['code'] == 'AUTHENTICATION_REQUIRED'
+
+
+def test_qualifier_number_is_required_and_persisted(app, client):
+    create_admin()
+    headers = login_headers(client)
+    payload = {'name': 'Clasificatorio', 'kind': 'CLASIFICATORIO',
+               'zone': 'NORTE', 'start_date': '2026-08-01'}
+    for invalid in (None, 0, 3, True, '1'):
+        response = client.post('/api/v1/championships',
+                               json={**payload, 'qualifier_number': invalid}, headers=headers)
+        assert response.status_code == 400
+    for number in (1, 2):
+        response = client.post('/api/v1/championships',
+                               json={**payload, 'qualifier_number': number}, headers=headers)
+        assert response.status_code == 201
+        saved = response.get_json()['championship']
+        assert saved['qualifier_number'] == number
+        detail = client.get(f"/api/v1/championships/{saved['id']}", headers=headers)
+        assert detail.get_json()['championship']['qualifier_number'] == number
+
+
+def test_zone_and_final_validation(app, client):
+    create_admin()
+    headers = login_headers(client)
+    payload = {'name': 'Final', 'kind': 'FINAL', 'zone': 'SUR', 'start_date': '2026-08-01'}
+    assert client.post('/api/v1/championships', json={**payload, 'zone': 'OTRA'},
+                       headers=headers).status_code == 400
+    assert client.post('/api/v1/championships', json={**payload, 'qualifier_number': 1},
+                       headers=headers).status_code == 400
+    response = client.post('/api/v1/championships', json=payload, headers=headers)
+    assert response.status_code == 201
+    assert response.get_json()['championship']['qualifier_number'] is None

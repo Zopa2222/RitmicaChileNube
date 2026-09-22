@@ -287,6 +287,7 @@ def public_active_championship():
             'name': championship.name,
             'kind': championship.kind,
             'zone': championship.zone,
+            'qualifier_number': championship.qualifier_number,
             'start_date': championship.start_date.isoformat(),
         },
         'query': request.args.get('query', '').strip(),
@@ -426,6 +427,7 @@ def public_category_results(category_id):
             'name': championship.name,
             'kind': championship.kind,
             'zone': championship.zone,
+            'qualifier_number': championship.qualifier_number,
         },
         'category': {
             'id': str(category.id),

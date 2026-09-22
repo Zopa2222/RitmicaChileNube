@@ -1,7 +1,8 @@
 """Administrative cloud routes that are intentionally unavailable to judges.
 
-The operations routes keep the competition running; this module contains the
-rare, high-impact actions that are restricted to the super administrator.
+The operations routes keep the competition running. Judge management is
+available to both administrator account types, while global configuration
+remains exclusive to the super administrator.
 """
 
 import uuid
@@ -20,6 +21,7 @@ from app.models import (
     ChampionshipStatus,
     CredentialEvent,
     CredentialEventType,
+    JudgeAssignment,
     User,
     UserStatus,
 )
@@ -30,6 +32,7 @@ from app.routes.cloud_championships import (
 )
 from app.security.passwords import hash_password
 from app.security.permissions import account_types_required
+from app.security.access import judge_has_championship_access
 from app.services.file_storage_service import FileStorageError, delete_object
 from app.services.judge_account_service import (
     JudgeAccountError,
@@ -59,6 +62,7 @@ def _judge_response(judge):
         'rut': judge.rut_normalized,
         'username': judge.username,
         'status': judge.status.value,
+        'access_active': judge.status == UserStatus.ACTIVE and judge_has_championship_access(judge.id),
         'last_login_at': (
             judge.last_login_at.isoformat() if judge.last_login_at else None
         ),
@@ -85,6 +89,35 @@ def _get_judge_or_error(judge_id):
     return judge
 
 
+def _get_judges_for_batch(judge_ids):
+    """Return judges in request order, after validating the complete batch."""
+    if not isinstance(judge_ids, list) or not judge_ids:
+        raise JudgeAccountError('Debe seleccionar al menos un juez')
+    if len(judge_ids) > 100:
+        raise JudgeAccountError('Puede regenerar hasta 100 jueces a la vez')
+
+    parsed_ids = []
+    for raw_id in judge_ids:
+        judge_id = _uuid(raw_id, 'judge_id')
+        if judge_id is None:
+            raise JudgeAccountError('La selección contiene un identificador inválido')
+        parsed_ids.append(judge_id)
+    if len(set(parsed_ids)) != len(parsed_ids):
+        raise JudgeAccountError('No puede seleccionar un juez más de una vez')
+
+    judges_by_id = {
+        judge.id: judge for judge in db.session.execute(
+            select(User).where(
+                User.id.in_(parsed_ids),
+                User.account_type == AccountType.JUDGE,
+            )
+        ).scalars()
+    }
+    if len(judges_by_id) != len(parsed_ids):
+        raise LookupError('Uno o más jueces no fueron encontrados')
+    return [judges_by_id[judge_id] for judge_id in parsed_ids]
+
+
 def _as_utc(value):
     """SQLite returns naive DateTime values even for timezone-aware columns."""
     if value is not None and value.tzinfo is None:
@@ -93,7 +126,7 @@ def _as_utc(value):
 
 
 @bp.get('/admin/judges')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def list_judges(current_user):
     query = str(request.args.get('query', '')).strip().upper()
     statement = select(User).where(User.account_type == AccountType.JUDGE)
@@ -112,7 +145,7 @@ def list_judges(current_user):
 
 
 @bp.post('/admin/judges')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def create_judge(current_user):
     payload = request.get_json(silent=True) or {}
     try:
@@ -135,7 +168,7 @@ def create_judge(current_user):
 
 
 @bp.patch('/admin/judges/<judge_id>')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def update_judge(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
@@ -175,19 +208,67 @@ def update_judge(current_user, judge_id):
 
 
 @bp.delete('/admin/judges/<judge_id>')
-@account_types_required(*SUPER_ADMIN)
-def disable_judge(current_user, judge_id):
+@account_types_required(*ADMINS)
+def delete_judge(current_user, judge_id):
+    judge = _get_judge_or_error(judge_id)
+    if judge is None:
+        return validation_error('Juez no encontrado', code='JUDGE_NOT_FOUND', status=404)
+    has_assignments = db.session.execute(
+        select(JudgeAssignment.id).where(
+            JudgeAssignment.judge_user_id == judge.id
+        ).limit(1)
+    ).scalar_one_or_none()
+    if has_assignments:
+        return validation_error(
+            'No se puede eliminar un juez con asignaciones registradas. '
+            'Usa Desactivar para conservar el historial.',
+            code='JUDGE_HAS_ASSIGNMENTS',
+            status=409,
+        )
+    judge_id_value = judge.id
+    judge_details = {
+        'username': judge.username,
+        'first_name': judge.first_name,
+        'last_name': judge.last_name,
+    }
+    db.session.delete(judge)
+    _audit(
+        current_user,
+        'JUDGE_DELETED',
+        entity_type='USER',
+        entity_id=judge_id_value,
+        details=judge_details,
+    )
+    db.session.commit()
+    return '', 204
+
+
+@bp.post('/admin/judges/<judge_id>/deactivate')
+@account_types_required(*ADMINS)
+def deactivate_judge(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
         return validation_error('Juez no encontrado', code='JUDGE_NOT_FOUND', status=404)
     judge.status = UserStatus.DISABLED
-    _audit(current_user, 'JUDGE_DISABLED', entity_type='USER', entity_id=judge.id)
+    _audit(current_user, 'JUDGE_DEACTIVATED', entity_type='USER', entity_id=judge.id)
+    db.session.commit()
+    return jsonify({'judge': _judge_response(judge)})
+
+
+@bp.post('/admin/judges/<judge_id>/activate')
+@account_types_required(*ADMINS)
+def activate_judge(current_user, judge_id):
+    judge = _get_judge_or_error(judge_id)
+    if judge is None:
+        return validation_error('Juez no encontrado', code='JUDGE_NOT_FOUND', status=404)
+    judge.status = UserStatus.ACTIVE
+    _audit(current_user, 'JUDGE_ACTIVATED', entity_type='USER', entity_id=judge.id)
     db.session.commit()
     return jsonify({'judge': _judge_response(judge)})
 
 
 @bp.post('/admin/judges/<judge_id>/credentials/regenerate')
-@account_types_required(*SUPER_ADMIN)
+@account_types_required(*ADMINS)
 def regenerate_judge_credentials(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
@@ -207,6 +288,45 @@ def regenerate_judge_credentials(current_user, judge_id):
         'judge': _judge_response(judge),
         'credentials': {'username': judge.username, 'password': password},
     })
+
+
+@bp.post('/admin/judges/credentials/regenerate-batch')
+@account_types_required(*ADMINS)
+def regenerate_judge_credentials_batch(current_user):
+    """Regenerate a selected group atomically without persisting plain text."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        judges = _get_judges_for_batch(payload.get('judge_ids'))
+        items = []
+        for judge in judges:
+            password = generate_initial_password()
+            judge.password_hash = hash_password(password)
+            judge.status = UserStatus.ACTIVE
+            db.session.add(CredentialEvent(
+                user_id=judge.id,
+                event_type=CredentialEventType.REGENERATED,
+                created_by_user_id=current_user.id,
+            ))
+            _audit(
+                current_user,
+                'JUDGE_CREDENTIALS_REGENERATED',
+                entity_type='USER',
+                entity_id=judge.id,
+                details={'batch': True},
+            )
+            items.append({
+                'judge': _judge_response(judge),
+                'credentials': {'username': judge.username, 'password': password},
+            })
+        db.session.commit()
+    except LookupError as error:
+        db.session.rollback()
+        return validation_error(str(error), code='JUDGE_NOT_FOUND', status=404)
+    except JudgeAccountError as error:
+        db.session.rollback()
+        return validation_error(str(error), code='INVALID_JUDGE_BATCH')
+
+    return jsonify({'items': items})
 
 
 @bp.post('/admin/global-admin/recovery')
@@ -250,22 +370,30 @@ def recover_global_administrator(current_user):
 @account_types_required(*SUPER_ADMIN)
 def audit_logs(current_user):
     limit = min(max(int(request.args.get('limit', 100)), 1), 250)
-    statement = select(AuditLog).order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc())
+    statement = (
+        select(AuditLog, Championship.name)
+        .outerjoin(Championship, AuditLog.championship_id == Championship.id)
+        .order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc())
+    )
     championship_id = _uuid(request.args.get('championship_id'), 'championship_id')
     if request.args.get('championship_id') and championship_id is None:
         return validation_error('championship_id no es válido', code='INVALID_IDENTIFIER')
     if championship_id:
         statement = statement.where(AuditLog.championship_id == championship_id)
-    logs = db.session.execute(statement.limit(limit)).scalars().all()
+    logs = db.session.execute(statement.limit(limit)).all()
     return jsonify({'logs': [{
         'id': str(log.id), 'occurred_at': log.occurred_at.isoformat(),
         'actor_user_id': str(log.actor_user_id) if log.actor_user_id else None,
         'action': log.action,
         'championship_id': str(log.championship_id) if log.championship_id else None,
+        'championship': (
+            {'id': str(log.championship_id), 'name': championship_name}
+            if log.championship_id and championship_name else None
+        ),
         'entity_type': log.entity_type,
         'entity_id': str(log.entity_id) if log.entity_id else None,
         'details': log.details,
-    } for log in logs]})
+    } for log, championship_name in logs]})
 
 
 @bp.post('/championships/<championship_id>/deletion-confirmations')

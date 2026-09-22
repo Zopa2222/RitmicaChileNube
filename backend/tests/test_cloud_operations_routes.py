@@ -295,7 +295,7 @@ def test_super_admin_can_create_standalone_judge(app, client):
     assert response.get_json()['credentials']['password']
 
 
-def test_active_gymnast_is_independent_by_bench_and_refreshes_activation(
+def test_active_gymnast_is_independent_by_bench_and_advances_after_publication(
     app,
     client,
 ):
@@ -352,24 +352,19 @@ def test_active_gymnast_is_independent_by_bench_and_refreshes_activation(
         db.session.execute(select(BenchActivation)).scalars().all()
     ) == 1
 
-    switched = client.put(
-        endpoint,
-        json={'gymnast_id': str(gymnasts['A_AM_2'].id)},
+    switched = client.post(
+        (
+            f'/api/v1/championships/{championship.id}/competition-days/'
+            f'{day.id}/benches/A/pass-next'
+        ),
         headers=headers,
     )
-    assert switched.status_code == 200
-    assert switched.get_json()['activation']['id'] != first_activation_id
-
-    reactivated = client.put(
-        endpoint,
-        json={'gymnast_id': str(gymnasts['A_AM_1'].id)},
-        headers=headers,
-    )
-    assert reactivated.status_code == 200
-    new_activation_id = reactivated.get_json()['activation']['id']
+    assert switched.status_code == 201
+    new_activation_id = switched.get_json()['next_activation']['id']
     assert new_activation_id != first_activation_id
-    db.session.refresh(score)
-    assert str(score.activation_id) == new_activation_id
+    assert switched.get_json()['next_activation']['gymnast_id'] == str(
+        gymnasts['A_AM_2'].id
+    )
 
     wrong_bench = client.put(
         endpoint,
@@ -403,7 +398,7 @@ def test_active_gymnast_is_independent_by_bench_and_refreshes_activation(
     assert operations.status_code == 200
     assert (
         operations.get_json()['benches']['A']['active']['gymnast_id']
-        == str(gymnasts['A_AM_1'].id)
+        == str(gymnasts['A_AM_2'].id)
     )
     assert (
         operations.get_json()['benches']['B']['active']['gymnast_id']
@@ -547,3 +542,267 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         )
     ).scalars().all()
     assert 'JUDGE_REASSIGNED' in actions
+
+
+def test_active_championship_can_add_assignment_from_next_category(
+    app,
+    client,
+):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    judge = create_user(
+        AccountType.JUDGE,
+        'JUEZ-NUEVO',
+        rut='111111111',
+    )
+    championship, day, categories, gymnasts = create_championship_context(
+        admin
+    )
+    headers = login(client, admin.username)
+
+    assert client.post(
+        f'/api/v1/championships/{championship.id}/activate',
+        headers=headers,
+    ).status_code == 200
+    assert client.put(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/A/active-gymnast',
+        json={'gymnast_id': str(gymnasts['A_AM_1'].id)},
+        headers=headers,
+    ).status_code == 200
+
+    response = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments',
+        json=assignment_payload(day, judge.id, role='E'),
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assignment = response.get_json()['assignment']
+    assert (
+        assignment['effective_from_category']['id']
+        == str(categories['A_AM_2'].id)
+    )
+    assignment_id = uuid.UUID(assignment['id'])
+    scores = db.session.execute(
+        select(ScoreEntry).where(
+            ScoreEntry.judge_assignment_id == assignment_id
+        )
+    ).scalars().all()
+    assert [score.gymnast_id for score in scores] == [
+        gymnasts['A_AM_2'].id
+    ]
+
+
+def test_admin_can_remove_draft_assignment_without_deleting_judge(
+    app,
+    client,
+):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    judge = create_user(
+        AccountType.JUDGE,
+        'JUEZ-ELIMINAR',
+        rut='111111111',
+    )
+    championship, day, _, _ = create_championship_context(admin)
+    headers = login(client, admin.username)
+    created = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments',
+        json=assignment_payload(day, judge.id, role='E'),
+        headers=headers,
+    )
+    assignment_id = created.get_json()['assignment']['id']
+
+    removed = client.delete(
+        f'/api/v1/championships/{championship.id}/judge-assignments/'
+        f'{assignment_id}',
+        headers=headers,
+    )
+
+    assert removed.status_code == 200
+    assert removed.get_json()['effective_from_category'] is None
+    assert db.session.get(User, judge.id) is not None
+    assert db.session.get(JudgeAssignment, uuid.UUID(assignment_id)) is None
+    assert db.session.execute(
+        select(ScoreEntry).where(
+            ScoreEntry.judge_assignment_id == uuid.UUID(assignment_id)
+        )
+    ).scalar_one_or_none() is None
+
+
+def test_pass_next_publishes_active_gymnast_and_activates_following_one(
+    app,
+    client,
+):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, day, categories, gymnasts = create_championship_context(
+        admin
+    )
+    headers = login(client, admin.username)
+    assert client.post(
+        f'/api/v1/championships/{championship.id}/activate',
+        headers=headers,
+    ).status_code == 200
+    assert client.put(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/A/active-gymnast',
+        json={'gymnast_id': str(gymnasts['A_AM_1'].id)},
+        headers=headers,
+    ).status_code == 200
+
+    operations = client.get(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/operations',
+        headers=headers,
+    )
+    assert operations.status_code == 200
+    active = operations.get_json()['benches']['A']['active']
+    assert active['category']['id'] == str(categories['A_AM_1'].id)
+    assert active['score']['total_score'] == '20.00'
+    assert active['score']['calculation_status'] == 'PROVISIONAL'
+
+    response = client.post(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/A/pass-next',
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    payload = response.get_json()
+    assert payload['publication']['mode'] == 'UP_TO_GYMNAST'
+    assert payload['publication']['gymnast_id'] == str(
+        gymnasts['A_AM_1'].id
+    )
+    assert payload['next_activation']['gymnast_id'] == str(
+        gymnasts['A_AM_2'].id
+    )
+    open_activation = db.session.execute(
+        select(BenchActivation).where(
+            BenchActivation.championship_id == championship.id,
+            BenchActivation.competition_day_id == day.id,
+            BenchActivation.bench == Bench.A,
+            BenchActivation.deactivated_at.is_(None),
+        )
+    ).scalar_one()
+    assert open_activation.gymnast_id == gymnasts['A_AM_2'].id
+
+    public = client.get(
+        f'/api/v1/public/championships/active/categories/'
+        f"{categories['A_AM_1'].id}/results"
+    )
+    assert public.status_code == 200
+    published_row = public.get_json()['results'][0]
+    assert published_row['gymnast_id'] == str(gymnasts['A_AM_1'].id)
+    assert published_row['is_published']
+
+
+def test_pass_next_finishes_bench_after_last_gymnast(app, client):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, day, _, gymnasts = create_championship_context(admin)
+    headers = login(client, admin.username)
+    assert client.post(
+        f'/api/v1/championships/{championship.id}/activate',
+        headers=headers,
+    ).status_code == 200
+    assert client.put(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/B/active-gymnast',
+        json={'gymnast_id': str(gymnasts['B_AM_1'].id)},
+        headers=headers,
+    ).status_code == 200
+
+    response = client.post(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/B/pass-next',
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.get_json()['next_activation'] is None
+    assert db.session.execute(
+        select(BenchActivation).where(
+            BenchActivation.championship_id == championship.id,
+            BenchActivation.competition_day_id == day.id,
+            BenchActivation.bench == Bench.B,
+            BenchActivation.deactivated_at.is_(None),
+        )
+    ).scalar_one_or_none() is None
+
+
+def test_pass_next_requires_an_active_gymnast(app, client):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, day, _, _ = create_championship_context(admin)
+    headers = login(client, admin.username)
+    assert client.post(
+        f'/api/v1/championships/{championship.id}/activate',
+        headers=headers,
+    ).status_code == 200
+
+    response = client.post(
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/A/pass-next',
+        headers=headers,
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()['code'] == 'ACTIVE_GYMNAST_NOT_FOUND'
+
+
+def test_direct_activation_can_switch_and_return(app, client):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, day, categories, gymnasts = create_championship_context(admin)
+    judge = create_user(AccountType.JUDGE, 'RETURN_JUDGE', rut='111111111')
+    assignment = JudgeAssignment(
+        championship_id=championship.id, judge_user_id=judge.id,
+        competition_day_id=day.id, bench=Bench.A, session=Session.AM, role=JudgeRole.A,
+        effective_from_category_id=categories['A_AM_1'].id, assigned_by_user_id=admin.id,
+    )
+    db.session.add(assignment)
+    db.session.commit()
+    headers = login(client, admin.username)
+    assert client.post(
+        f'/api/v1/championships/{championship.id}/activate',
+        headers=headers,
+    ).status_code == 200
+    activation_url = (
+        f'/api/v1/championships/{championship.id}/competition-days/'
+        f'{day.id}/benches/A/active-gymnast'
+    )
+    assert client.put(
+        activation_url,
+        json={'gymnast_id': str(gymnasts['A_AM_1'].id)},
+        headers=headers,
+    ).status_code == 200
+
+    entry = db.session.execute(select(ScoreEntry).where(
+        ScoreEntry.gymnast_id == gymnasts['A_AM_1'].id,
+        ScoreEntry.judge_assignment_id == assignment.id,
+    )).scalar_one()
+    entry.value = 7.25
+    db.session.commit()
+    original_entry_id = entry.id
+
+    skipped = client.put(
+        activation_url,
+        json={'gymnast_id': str(gymnasts['A_AM_2'].id)},
+        headers=headers,
+    )
+
+    assert skipped.status_code == 200
+    returned = client.put(
+        activation_url, json={'gymnast_id': str(gymnasts['A_AM_1'].id)}, headers=headers,
+    )
+    assert returned.status_code == 200
+    open_activation = db.session.execute(
+        select(BenchActivation).where(
+            BenchActivation.championship_id == championship.id,
+            BenchActivation.competition_day_id == day.id,
+            BenchActivation.bench == Bench.A,
+            BenchActivation.deactivated_at.is_(None),
+        )
+    ).scalar_one()
+    assert open_activation.gymnast_id == gymnasts['A_AM_1'].id
+
+    db.session.expire_all()
+    entry = db.session.get(ScoreEntry, original_entry_id)
+    assert float(entry.value) == 7.25
+    assert entry.activation_id == open_activation.id

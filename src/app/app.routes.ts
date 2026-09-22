@@ -43,9 +43,26 @@ export const routes: Routes = [
     },
     {
         path: 'superadministracion',
+        redirectTo: 'superadministracion/configuracion',
+        pathMatch: 'full'
+    },
+    {
+        path: 'superadministracion/configuracion',
         component: CloudAdministrationComponent,
         canActivate: [authGuard, roleGuard],
-        data: { roles: ['SUPER_ADMIN'] }
+        data: { roles: ['SUPER_ADMIN'], section: 'configuration' }
+    },
+    {
+        path: 'superadministracion/jueces',
+        component: CloudAdministrationComponent,
+        canActivate: [authGuard, roleGuard],
+        data: { roles: ADMIN_ROLES, section: 'judges' }
+    },
+    {
+        path: 'administracion/jueces',
+        component: CloudAdministrationComponent,
+        canActivate: [authGuard, roleGuard],
+        data: { roles: ADMIN_ROLES, section: 'judges' }
     },
     {
         path: 'cabina-juez',

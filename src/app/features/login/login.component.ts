@@ -23,7 +23,6 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ApiErrorBody } from '../../core/models/api-error.model';
 import {
     AuthenticatedUser,
-    JudgeAccessWindow,
     homeRouteForAccountType
 } from '../../core/models/auth.model';
 
@@ -53,9 +52,8 @@ export class LoginComponent {
     loading = false;
     hidePassword = true;
     errorMessage = '';
-    nextAccessWindow: JudgeAccessWindow | null = null;
     readonly sessionExpired: boolean;
-    readonly accessWindowClosed: boolean;
+    readonly judgeAccessUnavailable: boolean;
 
     constructor(
         private readonly formBuilder: FormBuilder,
@@ -65,8 +63,8 @@ export class LoginComponent {
     ) {
         this.sessionExpired =
             this.route.snapshot.queryParamMap.get('sessionExpired') === 'true';
-        this.accessWindowClosed =
-            this.route.snapshot.queryParamMap.get('accessWindowClosed') === 'true';
+        this.judgeAccessUnavailable =
+            this.route.snapshot.queryParamMap.get('judgeAccessUnavailable') === 'true';
     }
 
     submit(): void {
@@ -77,7 +75,6 @@ export class LoginComponent {
 
         this.loading = true;
         this.errorMessage = '';
-        this.nextAccessWindow = null;
 
         this.authService.login({
             username: this.form.controls.username.value.trim().toUpperCase(),
@@ -93,7 +90,6 @@ export class LoginComponent {
             error: (error: HttpErrorResponse) => {
                 const body = error.error as Partial<ApiErrorBody> | null;
                 this.errorMessage = this.messageFor(body?.code);
-                this.nextAccessWindow = body?.next_access_window ?? null;
             }
         });
     }
@@ -117,8 +113,8 @@ export class LoginComponent {
                 return 'El usuario o la contraseña no son correctos.';
             case 'ACCOUNT_DISABLED':
                 return 'Esta cuenta se encuentra deshabilitada.';
-            case 'ACCESS_WINDOW_CLOSED':
-                return 'Tu cuenta de juez no tiene una ventana de acceso vigente.';
+            case 'JUDGE_ACCESS_NOT_AVAILABLE':
+                return 'Tu cuenta de juez no tiene una asignación vigente en un campeonato en curso.';
             default:
                 return 'No fue posible iniciar sesión. Revisa tu conexión e inténtalo nuevamente.';
         }

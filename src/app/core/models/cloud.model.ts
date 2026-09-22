@@ -18,6 +18,7 @@ export interface CloudChampionship {
     name: string;
     kind: string;
     zone: string;
+    qualifier_number?: 1 | 2 | null;
     start_date: string;
     timezone: string;
     status: ChampionshipStatus;
@@ -39,6 +40,7 @@ export interface CreateChampionshipRequest {
     name: string;
     kind: string;
     zone: string;
+    qualifier_number?: 1 | 2 | null;
     start_date: string;
 }
 
@@ -132,6 +134,7 @@ export interface ImportPreview {
 }
 
 export interface CloudJudge {
+    access_active?: boolean;
     id: string;
     first_name: string;
     last_name: string;
@@ -204,7 +207,15 @@ export interface ActiveGymnast {
     activation_id: string;
     gymnast_id: string;
     full_name: string;
+    club_name: string;
     activated_at: string;
+    category: {
+        id: string;
+        name: string;
+        session: CompetitionSession;
+    };
+    score: ScoreSummary;
+    pending_count: number;
 }
 
 export interface BenchOperations {
@@ -304,6 +315,7 @@ export interface CategoryScoring {
 }
 
 export type JudgeContextState =
+    | 'WAITING_FOR_CHAMPIONSHIP'
     | 'WAITING_FOR_GYMNAST'
     | 'WAITING_FOR_SESSION'
     | 'WAITING_FOR_EFFECTIVE_CATEGORY'
@@ -351,6 +363,7 @@ export interface AuditLogEntry {
     actor_user_id: string | null;
     action: string;
     championship_id: string | null;
+    championship: { id: string; name: string } | null;
     entity_type: string | null;
     entity_id: string | null;
     details: Record<string, unknown>;

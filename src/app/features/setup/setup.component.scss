@@ -251,6 +251,11 @@
     border-color: #86efac;
 }
 
+.sheet-card.invalid {
+    border-color: #f87171;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+}
+
 .sheet-card > header {
     display: flex;
     justify-content: space-between;
@@ -280,6 +285,10 @@
 
 .confirmed .confirmation-state {
     color: #166534;
+}
+
+.sheet-card.pending-changes .confirmation-state {
+    color: #92400e;
 }
 
 .detection {
@@ -342,6 +351,17 @@ th {
 details {
     margin-top: 1.25rem;
     border-top: 1px solid #e2e8f0;
+}
+
+.sheet-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+}
+
+.sheet-card-actions button[mat-flat-button] {
+    color: #fff;
+    background: #4f46e5;
 }
 
 summary {

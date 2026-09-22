@@ -28,11 +28,11 @@
             </div>
 
             <div
-                *ngIf="accessWindowClosed"
+                *ngIf="judgeAccessUnavailable"
                 class="notice"
                 role="status">
                 <mat-icon>lock_clock</mat-icon>
-                La ventana de acceso del juez ya no se encuentra vigente.
+                Tu acceso de juez no está disponible para un campeonato en curso.
             </div>
 
             <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -86,16 +86,8 @@
                     <mat-icon>error_outline</mat-icon>
                     <div>
                         <strong>{{ errorMessage }}</strong>
-                        <span *ngIf="nextAccessWindow">
-                            Próximo acceso:
-                            {{ nextAccessWindow.starts_at
-                                | date:'dd/MM/yyyy HH:mm' }}
-                            a
-                            {{ nextAccessWindow.ends_at | date:'HH:mm' }}.
-                        </span>
                         <span
-                            *ngIf="!nextAccessWindow
-                                && errorMessage.includes('ventana')">
+                            *ngIf="errorMessage.includes('asignación')">
                             Consulta al administrador del campeonato.
                         </span>
                     </div>

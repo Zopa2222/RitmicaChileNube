@@ -188,6 +188,7 @@ class Championship(UUIDPrimaryKeyMixin, TimestampMixin, db.Model):
     name: Mapped[str] = mapped_column(String(180), nullable=False)
     kind: Mapped[str] = mapped_column(String(80), nullable=False)
     zone: Mapped[str] = mapped_column(String(120), nullable=False)
+    qualifier_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     timezone: Mapped[str] = mapped_column(
         String(64),

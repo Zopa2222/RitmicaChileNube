@@ -14,6 +14,7 @@
         <h1>No pudimos abrir el campeonato</h1>
         <p>{{ errorMessage }}</p>
         <button mat-stroked-button type="button" (click)="load()">
+            <mat-icon>refresh</mat-icon>
             Reintentar
         </button>
     </section>
@@ -27,16 +28,24 @@
                     {{ statusLabel(item.status) }}
                 </span>
                 <h1>{{ item.name }}</h1>
-                <p>{{ item.kind }} · Zona {{ item.zone }}</p>
+                <p>{{ item.kind }} {{ item.qualifier_number }} · Zona {{ item.zone }}</p>
             </div>
             <div class="header-actions">
                 <a
                     *ngIf="item.counts.days > 0"
-                    mat-stroked-button
+                    mat-flat-button color="primary" class="operation-action"
                     [routerLink]="['/championships', item.id, 'operations']">
                     <mat-icon>scoreboard</mat-icon>
-                    Operación
+                    Operación en vivo
                 </a>
+                <button *ngIf="item.counts.days > 0" mat-stroked-button type="button"
+                    (click)="download('excel')" [disabled]="downloading">
+                    <mat-icon>table_view</mat-icon> Exportar Excel
+                </button>
+                <button *ngIf="item.counts.days > 0" mat-stroked-button type="button"
+                    (click)="download('pdf')" [disabled]="downloading">
+                    <mat-icon>picture_as_pdf</mat-icon> Exportar PDF
+                </button>
                 <a
                     *ngIf="item.status === 'DRAFT' && item.counts.days === 0"
                     mat-flat-button
@@ -47,8 +56,7 @@
                 </a>
                 <button
                     *ngIf="item.status === 'DRAFT' || item.status === 'PAUSED'"
-                    mat-flat-button
-                    color="primary"
+                    mat-stroked-button
                     type="button"
                     (click)="activate()"
                     [disabled]="processing || item.counts.categories === 0">
@@ -73,18 +81,21 @@
                     class="danger-action"
                     (click)="close()"
                     [disabled]="processing">
-                    Cerrar
+                    <mat-icon>stop_circle</mat-icon>
+                    Terminar
                 </button>
                 <button
                     *ngIf="item.status === 'PENDING_DELETION'"
                     mat-stroked-button type="button" (click)="recover()"
                     [disabled]="processing">
+                    <mat-icon>restore</mat-icon>
                     Recuperar
                 </button>
                 <button
                     *ngIf="item.status !== 'PENDING_DELETION' && item.status !== 'DELETED'"
                     mat-button class="danger-action" type="button" (click)="requestDeletion()"
                     [disabled]="processing">
+                    <mat-icon>delete_outline</mat-icon>
                     Eliminar
                 </button>
             </div>
@@ -128,6 +139,7 @@
                 mat-flat-button
                 color="primary"
                 [routerLink]="['/championships', item.id, 'import']">
+                <mat-icon>upload_file</mat-icon>
                 Continuar importación
             </a>
         </section>
@@ -145,6 +157,119 @@
                     <strong>{{ day.date | date:'EEEE d MMMM':'UTC':'es-CL' }}</strong>
                     <small>Hoja: {{ day.sheet_name }}</small>
                 </mat-card>
+            </div>
+        </section>
+
+        <section *ngIf="competitionDays.length" class="judge-management">
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">Configuración del campeonato</span>
+                    <h2>Jueces asignados</h2>
+                    <p>Revisa cada jornada y asigna o cambia jueces sin salir del campeonato.</p>
+                </div>
+            </div>
+
+            <label class="assignment-day-picker">
+                Jornada a revisar
+                <select [(ngModel)]="selectedAssignmentDayId">
+                    <option *ngFor="let day of competitionDays" [value]="day.id">
+                        Día {{ day.sequence }} · {{ day.date | date:'dd/MM/yyyy':'UTC' }} · {{ day.sheet_name }}
+                    </option>
+                </select>
+            </label>
+
+            <div *ngIf="assignmentChangesAllowed" class="new-assignment">
+                <div class="new-assignment-heading">
+                    <mat-icon>person_add</mat-icon>
+                    <div>
+                        <h3>Asignar juez</h3>
+                        <p>Busca un juez registrado o crea uno nuevo para esta asignación.</p>
+                        <p *ngIf="item.status !== 'DRAFT'" class="assignment-timing-note">
+                            La asignación se aplicará desde la siguiente categoría disponible.
+                        </p>
+                    </div>
+                </div>
+                <div class="assignment-form">
+                    <label>Banca
+                        <select [(ngModel)]="assignmentDraft.bench"><option value="A">Banca A</option><option value="B">Banca B</option></select>
+                    </label>
+                    <label>Jornada
+                        <select [(ngModel)]="assignmentDraft.session"><option value="AM">AM</option><option value="PM">PM</option></select>
+                    </label>
+                    <label>Rol
+                        <select [(ngModel)]="assignmentDraft.role"><option *ngFor="let role of ['DA', 'DB', 'A', 'E', 'L', 'P']" [value]="role">{{ role }}</option></select>
+                    </label>
+                    <label class="judge-selector">Juez
+                        <span class="judge-search-input">
+                            <mat-icon>search</mat-icon>
+                            <input
+                                [(ngModel)]="judgeSearchText"
+                                (ngModelChange)="onJudgeSearchChanged()"
+                                placeholder="Busca por nombre, apellido o RUT"
+                                autocomplete="off"
+                                aria-label="Buscar juez">
+                        </span>
+                    </label>
+                    <div class="judge-search-results" *ngIf="judgeSearchText.trim() && !assignmentDraft.judgeId && !showNewJudgeForm">
+                        <p *ngIf="searchingJudges">Buscando jueces…</p>
+                        <button mat-button *ngFor="let judge of judgeSearchResults" type="button" (click)="selectJudge(judge)">
+                            <mat-icon aria-hidden="true">person</mat-icon>
+                            <span>
+                                <strong>{{ judge.first_name }} {{ judge.last_name }}</strong>
+                                <small>RUT {{ judge.rut }}</small>
+                            </span>
+                        </button>
+                        <p *ngIf="!searchingJudges && !judgeSearchResults.length">No encontramos jueces con esa búsqueda.</p>
+                    </div>
+                    <button mat-stroked-button type="button" class="new-judge-button" (click)="openNewJudgeForm()" [disabled]="managingAssignments">
+                        <mat-icon>add</mat-icon> Crear juez nuevo
+                    </button>
+                    <ng-container *ngIf="showNewJudgeForm">
+                        <label>Nombre<input placeholder="Nombre" [(ngModel)]="assignmentDraft.firstName"></label>
+                        <label>Apellido<input placeholder="Apellido" [(ngModel)]="assignmentDraft.lastName"></label>
+                        <label>RUT<input placeholder="12.345.678-5" [(ngModel)]="assignmentDraft.rut" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" (ngModelChange)="formatInlineRut($event)"></label>
+                    </ng-container>
+                    <button mat-flat-button color="primary" type="button" (click)="createAssignment()" [disabled]="managingAssignments || (!assignmentDraft.judgeId && (!showNewJudgeForm || inlineJudgeInvalid))">
+                        <mat-icon>check_circle</mat-icon> Asignar juez
+                    </button>
+                </div>
+            </div>
+
+            <p *ngIf="!assignmentChangesAllowed" class="assignment-readonly">
+                Este campeonato ya no admite cambios en sus asignaciones.
+            </p>
+            <p *ngIf="!assignmentsForSelectedDay().length" class="no-assignments">
+                No hay jueces asignados para esta jornada.
+            </p>
+            <div *ngIf="assignmentsForSelectedDay().length" class="assignment-list">
+                <article *ngFor="let assignment of assignmentsForSelectedDay(); let index = index" class="assignment-card">
+                    <div class="assignment-summary">
+                        <span class="assignment-role">{{ assignmentRoleLabel(assignment) }}</span>
+                        <div>
+                            <strong>{{ assignment.judge.first_name }} {{ assignment.judge.last_name }}</strong>
+                            <span>Banca {{ assignment.bench }} · Jornada {{ assignment.session }}</span>
+                        </div>
+                    </div>
+                    <small class="assignment-effective">Desde {{ assignment.effective_from_category.name }}</small>
+                    <div *ngIf="assignmentChangesAllowed" class="reassign-control">
+                        <select [(ngModel)]="replacementJudgeIds[assignment.id]" [attr.aria-label]="'Nuevo juez para ' + assignmentRoleLabel(assignment)">
+                            <option value="">Cambiar por…</option>
+                            <option *ngFor="let judge of judges" [value]="judge.id" [disabled]="judge.id === assignment.judge.id">
+                                {{ judge.first_name }} {{ judge.last_name }}
+                            </option>
+                        </select>
+                        <button mat-flat-button color="primary" type="button" (click)="reassign(assignment)" [disabled]="managingAssignments || !replacementJudgeIds[assignment.id]">
+                            <mat-icon>swap_horiz</mat-icon>
+                            Cambiar juez
+                        </button>
+                        <button mat-stroked-button type="button" class="remove-judge-button" (click)="removeAssignment(assignment)" [disabled]="managingAssignments">
+                            <mat-icon>delete_outline</mat-icon> Eliminar juez
+                        </button>
+                    </div>
+                    <small *ngIf="assignmentChangesAllowed" class="reassign-note">
+                        El cambio se aplicará desde la siguiente categoría disponible.
+                    </small>
+                </article>
             </div>
         </section>
 

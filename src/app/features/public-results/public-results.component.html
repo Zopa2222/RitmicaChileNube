@@ -10,9 +10,12 @@
                 <small class="brand-lockup__subtitle">Sistema oficial de puntajes</small>
             </span>
         </a>
-        <nav class="internal-access" aria-label="Acceso al sistema">
+        <nav *ngIf="!(user$ | async)" class="internal-access" aria-label="Acceso al sistema">
             <span>Jueces y administración</span>
-            <a routerLink="/ingresar" class="login-link">Iniciar sesión</a>
+            <a mat-stroked-button routerLink="/ingresar" class="login-link">
+                <mat-icon>login</mat-icon>
+                Iniciar sesión
+            </a>
         </nav>
     </header>
 
@@ -34,11 +37,12 @@
         </div>
         <button
             type="button"
+            mat-stroked-button
             class="refresh-button"
             (click)="refresh()"
             [disabled]="loadingCatalog"
         >
-            <span aria-hidden="true">↻</span>
+            <mat-icon>refresh</mat-icon>
             Actualizar
         </button>
     </section>
@@ -61,11 +65,12 @@
             <button
                 *ngIf="searchControl.value"
                 type="button"
+                mat-icon-button
                 class="clear-button"
                 (click)="clearSearch()"
                 aria-label="Limpiar búsqueda"
             >
-                ×
+                <mat-icon>close</mat-icon>
             </button>
         </div>
     </section>
@@ -88,7 +93,8 @@
         <span class="state-icon" aria-hidden="true">◇</span>
         <h1>No hay un campeonato activo</h1>
         <p>Los resultados aparecerán aquí cuando comience el próximo evento.</p>
-        <button type="button" class="primary-button" (click)="refresh()">
+        <button mat-flat-button color="primary" type="button" (click)="refresh()">
+            <mat-icon>refresh</mat-icon>
             Volver a consultar
         </button>
     </section>
@@ -101,7 +107,8 @@
         <span class="state-icon" aria-hidden="true">!</span>
         <h1>No pudimos cargar los resultados</h1>
         <p>{{ errorMessage }}</p>
-        <button type="button" class="primary-button" (click)="refresh()">
+        <button mat-flat-button color="primary" type="button" (click)="refresh()">
+            <mat-icon>refresh</mat-icon>
             Reintentar
         </button>
     </section>
@@ -120,6 +127,7 @@
                 <button
                     *ngFor="let category of categories; trackBy: categoryTrackBy"
                     type="button"
+                    mat-button
                     class="category-item"
                     [class.selected]="selectedCategory?.id === category.id"
                     [attr.aria-pressed]="selectedCategory?.id === category.id"
@@ -135,6 +143,7 @@
                     <span class="participant-count">
                         {{ category.gymnast_count }}
                     </span>
+                    <mat-icon aria-hidden="true">chevron_right</mat-icon>
                 </button>
             </nav>
 
@@ -143,9 +152,12 @@
                     <p>No encontramos categorías con esa búsqueda.</p>
                     <button
                         *ngIf="searchControl.value"
+                        mat-button
+                        color="primary"
                         type="button"
                         (click)="clearSearch()"
                     >
+                        <mat-icon>close</mat-icon>
                         Limpiar búsqueda
                     </button>
                 </div>

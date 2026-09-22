@@ -64,7 +64,8 @@ export class SetupComponent implements OnInit {
     readonly championshipForm = this.formBuilder.nonNullable.group({
         name: ['', [Validators.required, Validators.maxLength(180)]],
         kind: ['CLASIFICATORIO', Validators.required],
-        zone: ['', [Validators.required, Validators.maxLength(120)]],
+        zone: ['', Validators.required],
+        qualifier_number: [1 as 1 | 2, Validators.required],
         start_date: ['', Validators.required]
     });
 
@@ -74,9 +75,11 @@ export class SetupComponent implements OnInit {
     loading = false;
     pageLoading = false;
     errorMessage = '';
-    savingSheet: number | null = null;
+    savingCutoffSequence: number | null = null;
     cutoffOptions: Record<number, CutoffOption> = {};
     manualRows: Record<number, number | null> = {};
+    invalidCutoffSequences = new Set<number>();
+    private readonly dirtyCutoffSequences = new Set<number>();
 
     private readonly routeChampionshipId =
         this.route.snapshot.paramMap.get('championshipId');
@@ -106,6 +109,18 @@ export class SetupComponent implements OnInit {
         );
     }
 
+    get canConfirmImport(): boolean {
+        return this.allCutoffsConfirmed && !this.cutoffsDirty;
+    }
+
+    get savingCutoffs(): boolean {
+        return this.savingCutoffSequence !== null;
+    }
+
+    get cutoffsDirty(): boolean {
+        return this.dirtyCutoffSequences.size > 0;
+    }
+
     createChampionship(): void {
         if (this.championshipForm.invalid || this.loading) {
             this.championshipForm.markAllAsTouched();
@@ -118,7 +133,8 @@ export class SetupComponent implements OnInit {
         this.championshipsApi.create({
             name: value.name.trim(),
             kind: value.kind,
-            zone: value.zone.trim(),
+            zone: value.zone,
+            qualifier_number: value.kind === 'CLASIFICATORIO' ? value.qualifier_number : null,
             start_date: value.start_date
         }).subscribe({
             next: (championship) => {
@@ -218,31 +234,39 @@ export class SetupComponent implements OnInit {
         if (option !== 'MANUAL') {
             this.manualRows[sheet.sequence] = null;
         }
+        this.dirtyCutoffSequences.add(sheet.sequence);
+        this.invalidCutoffSequences.delete(sheet.sequence);
+        this.invalidCutoffSequences = new Set(this.invalidCutoffSequences);
     }
 
-    saveSheetCutoff(sheet: ImportPreviewSheet): void {
-        if (!this.preview || !this.championship || this.savingSheet !== null) {
-            return;
-        }
+    manualRowChanged(sheet: ImportPreviewSheet, value: number): void {
+        this.manualRows[sheet.sequence] = value;
+        this.dirtyCutoffSequences.add(sheet.sequence);
+        this.invalidCutoffSequences.delete(sheet.sequence);
+        this.invalidCutoffSequences = new Set(this.invalidCutoffSequences);
+    }
+
+    isCutoffDirty(sheet: ImportPreviewSheet): boolean {
+        return this.dirtyCutoffSequences.has(sheet.sequence);
+    }
+
+    confirmCutoffs(sheet: ImportPreviewSheet): void {
+        if (!this.preview || !this.championship || this.savingCutoffs) return;
+
         const option = this.cutoffOptions[sheet.sequence];
         const rawRow = option === 'MANUAL'
             ? this.manualRows[sheet.sequence]
             : option;
         const row = Number(rawRow);
-        if (
-            !Number.isInteger(row)
-            || row < 1
-            || row > sheet.max_content_row + 1
-        ) {
-            this.snackBar.open(
-                `Indica una fila entre 1 y ${sheet.max_content_row + 1}.`,
-                'Cerrar',
-                { duration: 4500 }
-            );
+        if (!Number.isInteger(row) || row < 1 || row > sheet.max_content_row + 1) {
+            this.invalidCutoffSequences.add(sheet.sequence);
+            this.invalidCutoffSequences = new Set(this.invalidCutoffSequences);
+            this.errorMessage = `Indica una fila de corte válida para el día ${sheet.sequence}.`;
             return;
         }
 
-        this.savingSheet = sheet.sequence;
+        this.savingCutoffSequence = sheet.sequence;
+        this.errorMessage = '';
         this.championshipsApi.updateImportPreview(
             this.championship.id,
             this.preview.id,
@@ -256,59 +280,18 @@ export class SetupComponent implements OnInit {
         ).subscribe({
             next: (preview) => {
                 this.preview = preview;
+                this.dirtyCutoffSequences.delete(sheet.sequence);
                 this.initializeCutoffs(preview, true);
-                this.savingSheet = null;
-            },
-            error: (error) => {
+                this.savingCutoffSequence = null;
                 this.snackBar.open(
-                    this.apiMessage(error, 'No fue posible guardar el corte.'),
+                    `Cortes AM/PM del día ${sheet.sequence} confirmados.`,
                     'Cerrar',
-                    { duration: 5500 }
+                    { duration: 3500 }
                 );
-                this.savingSheet = null;
-            }
-        });
-    }
-
-    acceptDetectedCutoffs(): void {
-        if (!this.preview || !this.championship || this.loading) {
-            return;
-        }
-        if (!this.preview.preview.sheets.some(
-            (sheet) => sheet.detected_cutoff_row !== null
-        )) {
-            this.snackBar.open(
-                'Ninguna hoja tiene un corte automático válido.',
-                'Cerrar',
-                { duration: 4500 }
-            );
-            return;
-        }
-
-        this.loading = true;
-        this.championshipsApi.updateImportPreview(
-            this.championship.id,
-            this.preview.id,
-            { accept_detected: true }
-        ).subscribe({
-            next: (preview) => {
-                this.preview = preview;
-                this.initializeCutoffs(preview, true);
-                this.loading = false;
-                if (!this.allCutoffsConfirmed) {
-                    this.snackBar.open(
-                        'Se aceptaron los cortes detectados. Revisa las hojas pendientes.',
-                        'Cerrar',
-                        { duration: 5000 }
-                    );
-                }
             },
             error: (error) => {
-                this.errorMessage = this.apiMessage(
-                    error,
-                    'No fue posible aceptar los cortes detectados.'
-                );
-                this.loading = false;
+                this.errorMessage = this.apiMessage(error, 'No fue posible confirmar los cortes.');
+                this.savingCutoffSequence = null;
             }
         });
     }
@@ -317,7 +300,7 @@ export class SetupComponent implements OnInit {
         if (
             !this.preview
             || !this.championship
-            || !this.allCutoffsConfirmed
+            || !this.canConfirmImport
             || this.loading
         ) {
             return;
@@ -419,13 +402,13 @@ export class SetupComponent implements OnInit {
 
     private initializeCutoffs(
         preview: ImportPreview,
-        preserveManual = false
+        preserveDirty = false
     ): void {
+        this.invalidCutoffSequences.clear();
         for (const sheet of preview.preview.sheets) {
             if (
-                preserveManual
-                && this.cutoffOptions[sheet.sequence] === 'MANUAL'
-                && !sheet.cutoff_confirmed
+                preserveDirty
+                && this.dirtyCutoffSequences.has(sheet.sequence)
             ) {
                 continue;
             }

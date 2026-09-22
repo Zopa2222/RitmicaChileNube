@@ -42,6 +42,7 @@ from app.services.cloud_scoring_service import (
     calculate_total_score,
     has_area_difference,
     parse_score_value,
+    refresh_role_resolution,
     refresh_score_summary,
     submit_administrator_score,
 )
@@ -926,7 +927,11 @@ def resolve_role_discrepancy(
             )
             .with_for_update()
         ).scalar_one_or_none()
-        if resolution is None or not resolution.has_discrepancy:
+        if resolution is None and requested_value is not None:
+            resolution = refresh_role_resolution(gymnast.id, role)
+        if requested_value is None and (
+            resolution is None or not resolution.has_discrepancy
+        ):
             raise ScoreSubmissionError(
                 'No existe una discrepancia para resolver',
                 code='NO_ROLE_DISCREPANCY',
@@ -935,7 +940,10 @@ def resolve_role_discrepancy(
             resolution.warning_active
             or (
                 requested_value is not None
-                and requested_value != resolution.effective_value
+                and (
+                    requested_value != resolution.effective_value
+                    or resolution.source != ResolutionSource.ADMIN
+                )
             )
         )
         if changed:

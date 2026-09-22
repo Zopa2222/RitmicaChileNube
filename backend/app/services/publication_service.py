@@ -33,6 +33,51 @@ def publish_full_category(
     """Create one immutable full-category snapshot for one explicit action."""
     timestamp = published_at or datetime.now(timezone.utc)
     gymnasts = category_gymnasts_for_publication(category.id)
+    return _create_publication_snapshot(
+        championship,
+        category,
+        gymnasts,
+        published_by_user_id,
+        PublicationMode.FULL_CATEGORY,
+        None,
+        timestamp,
+    )
+
+
+def publish_up_to_gymnast(
+    championship,
+    category,
+    gymnast,
+    published_by_user_id,
+    published_at=None,
+):
+    """Snapshot the category through the active gymnast's passing order."""
+    timestamp = published_at or datetime.now(timezone.utc)
+    gymnasts = [
+        candidate
+        for candidate in category_gymnasts_for_publication(category.id)
+        if candidate.passing_order <= gymnast.passing_order
+    ]
+    return _create_publication_snapshot(
+        championship,
+        category,
+        gymnasts,
+        published_by_user_id,
+        PublicationMode.UP_TO_GYMNAST,
+        gymnast.id,
+        timestamp,
+    )
+
+
+def _create_publication_snapshot(
+    championship,
+    category,
+    gymnasts,
+    published_by_user_id,
+    mode,
+    up_to_gymnast_id,
+    timestamp,
+):
     summaries = {
         gymnast.id: refresh_score_summary(
             gymnast.id,
@@ -58,8 +103,8 @@ def publish_full_category(
     batch = PublicationBatch(
         championship_id=championship.id,
         category_id=category.id,
-        mode=PublicationMode.FULL_CATEGORY,
-        up_to_gymnast_id=None,
+        mode=mode,
+        up_to_gymnast_id=up_to_gymnast_id,
         published_by_user_id=published_by_user_id,
         published_at=timestamp,
     )
@@ -94,7 +139,6 @@ def latest_category_publication(championship_id, category_id):
         .where(
             PublicationBatch.championship_id == championship_id,
             PublicationBatch.category_id == category_id,
-            PublicationBatch.mode == PublicationMode.FULL_CATEGORY,
         )
         .order_by(
             PublicationBatch.published_at.desc(),

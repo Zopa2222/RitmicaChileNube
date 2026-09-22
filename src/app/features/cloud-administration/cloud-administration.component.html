@@ -1,17 +1,68 @@
 <main class="administration-page">
-    <header><span class="eyebrow">Superadministración</span><h1>Control global</h1><p>Las acciones sensibles quedan registradas. El log se actualiza cada cinco segundos.</p></header>
-    <p *ngIf="message" class="message">{{ message }}</p>
-    <section class="credentials" *ngIf="credentials"><strong>Entrega estas credenciales ahora:</strong><span>Usuario: {{ credentials.username }}</span><code>{{ credentials.password }}</code><button mat-button (click)="credentials = null">Ocultar</button></section>
-    <section class="grid">
-        <article class="panel">
-            <h2>Nuevo juez</h2>
-            <label>Nombre<input [(ngModel)]="newJudge.first_name"></label><label>Apellido<input [(ngModel)]="newJudge.last_name"></label><label>RUT<input [(ngModel)]="newJudge.rut"></label>
-            <button mat-flat-button color="primary" (click)="createJudge()">Crear y generar credencial</button>
-        </article>
-        <article class="panel"><h2>Recuperar administrador</h2><p>Úsalo solo luego de verificar su identidad.</p><label>Nueva contraseña<input type="password" [(ngModel)]="newPassword"></label><button mat-stroked-button (click)="recoverAdministrator()">Restablecer acceso</button></article>
+    <header class="page-header">
+        <span class="eyebrow">{{ isConfiguration ? 'Superadministración' : 'Administración' }}</span>
+        <h1>{{ isConfiguration ? 'Configuración' : 'Jueces' }}</h1>
+        <p>{{ isConfiguration ? 'Gestiona las configuraciones globales del sistema.' : 'Crea y administra las cuentas de jueces.' }}</p>
+    </header>
+
+    <p *ngIf="message" class="message" role="alert">{{ message }}</p>
+
+    <section *ngIf="isConfiguration" id="configuracion" class="administration-section global-control">
+        <div class="section-title">
+            <mat-icon>settings</mat-icon>
+            <div>
+                <span class="eyebrow">Sistema</span>
+                <h2>Configuración</h2>
+                <p>Contraseña del administrador y seguimiento operativo del sistema.</p>
+            </div>
+        </div>
+
+        <div class="global-grid">
+            <article class="panel recovery-panel">
+                <div class="panel-title"><mat-icon>lock_reset</mat-icon><h3>Cambiar contraseña</h3></div>
+                <p>Restablece el acceso del administrador global sólo después de verificar su identidad.</p>
+                <label>Nueva contraseña<input type="password" [(ngModel)]="newPassword" autocomplete="new-password"></label>
+                <button mat-stroked-button type="button" (click)="recoverAdministrator()"><mat-icon>vpn_key</mat-icon> Restablecer acceso</button>
+            </article>
+
+            <article class="panel logs">
+                <div class="panel-title"><mat-icon>receipt_long</mat-icon><h3>Logs operativos</h3></div>
+                <p>Registro de acciones sensibles. Se actualiza automáticamente cada cinco segundos.</p>
+                <ul><li *ngFor="let log of logs"><time>{{ log.occurred_at | date:'dd/MM HH:mm:ss':'UTC' }}</time><div class="log-action"><strong>{{ log.action }}</strong><small *ngIf="log.championship as championship"><mat-icon>emoji_events</mat-icon> Campeonato: {{ championship.name }}</small></div><span class="log-details">{{ log.details | json }}</span></li></ul>
+                <p *ngIf="!logs.length" class="empty-state">Aún no hay acciones registradas.</p>
+            </article>
+        </div>
     </section>
-    <section class="panel judges"><div class="section-heading"><h2>Jueces</h2><input placeholder="Buscar" [(ngModel)]="query" (keyup.enter)="loadJudges()"><button mat-button (click)="loadJudges()">Buscar</button></div>
-        <table><thead><tr><th>Nombre</th><th>Usuario</th><th>RUT</th><th>Estado</th><th></th></tr></thead><tbody><tr *ngFor="let judge of judges"><td>{{ judge.first_name }} {{ judge.last_name }}</td><td>{{ judge.username }}</td><td>{{ judge.rut }}</td><td>{{ judge.status }}</td><td><button mat-button (click)="regenerate(judge)">Credencial</button><button mat-button (click)="disable(judge)" [disabled]="judge.status === 'DISABLED'">Deshabilitar</button></td></tr></tbody></table>
+
+    <section *ngIf="!isConfiguration" id="jueces" class="administration-section judges-section">
+        <div class="section-title">
+            <mat-icon>groups</mat-icon>
+            <div>
+                <span class="eyebrow">Personas</span>
+                <h2>Jueces</h2>
+                <p>Crea, busca y administra las cuentas de jueces.</p>
+            </div>
+        </div>
+
+        <section *ngIf="credentialEntries$ | async as deliveryEntries" class="credentials" [class.empty]="!deliveryEntries.length">
+            <ng-container *ngIf="deliveryEntries.length; else noCredentials">
+                <div class="credentials-heading"><div><h3>Credenciales por entregar ({{ deliveryEntries.length }})</h3><p>Están sólo en esta sesión. Descarga el archivo y compártelo por un canal seguro.</p></div><div><button mat-flat-button color="primary" type="button" (click)="exportCredentials(deliveryEntries)"><mat-icon>download</mat-icon> Exportar Excel</button><button mat-button type="button" (click)="clearCredentials()"><mat-icon>delete_sweep</mat-icon> Limpiar bandeja</button></div></div>
+                <div class="credentials-table"><table><thead><tr><th>Juez</th><th>RUT</th><th>Usuario</th><th>Contraseña</th><th></th></tr></thead><tbody><tr *ngFor="let entry of deliveryEntries"><td>{{ entry.firstName }} {{ entry.lastName }}</td><td>{{ entry.rut }}</td><td>{{ entry.username }}</td><td><code>{{ isCredentialVisible(entry) ? entry.password : '••••••••••••' }}</code></td><td><button mat-icon-button type="button" [attr.aria-label]="isCredentialVisible(entry) ? 'Ocultar contraseña' : 'Mostrar contraseña'" (click)="toggleCredentialVisibility(entry)"><mat-icon>{{ isCredentialVisible(entry) ? 'visibility_off' : 'visibility' }}</mat-icon></button></td></tr></tbody></table></div>
+            </ng-container>
+            <ng-template #noCredentials><p>Las credenciales nuevas aparecerán aquí hasta que cierres sesión, recargues o limpies la bandeja.</p></ng-template>
+        </section>
+
+        <div class="judge-tools">
+            <article class="panel new-judge-panel">
+                <div class="panel-title"><mat-icon>person_add</mat-icon><h3>Nuevo juez</h3></div>
+                <form [formGroup]="newJudgeForm" (ngSubmit)="createJudge()"><label>Nombre<input formControlName="first_name" autocomplete="given-name"></label><label>Apellido<input formControlName="last_name" autocomplete="family-name"></label><label>RUT<input formControlName="rut" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" (input)="formatRutField($event)"></label><p class="field-error" *ngIf="newJudgeForm.controls.rut.touched && newJudgeForm.controls.rut.hasError('required')">Ingresa el RUT.</p><p class="field-error" *ngIf="newJudgeForm.controls.rut.touched && newJudgeForm.controls.rut.getError('rut') === 'format'">Usa un RUT válido, por ejemplo 12.345.678-5.</p><p class="field-error" *ngIf="newJudgeForm.controls.rut.touched && newJudgeForm.controls.rut.getError('rut') === 'checkDigit'">El dígito verificador del RUT no es válido.</p><button mat-flat-button color="primary" type="submit" [disabled]="newJudgeForm.invalid"><mat-icon>person_add</mat-icon> Crear y generar credencial</button></form>
+            </article>
+
+            <article class="panel judges">
+                <div class="section-heading"><div><h3>Directorio de jueces</h3><p>Actualiza datos, genera nuevas credenciales o elimina accesos.</p></div><label class="judge-search"><mat-icon>search</mat-icon><input placeholder="Buscar por nombre, usuario o RUT" [(ngModel)]="query" (keyup.enter)="loadJudges()" aria-label="Buscar jueces"></label><button mat-stroked-button type="button" (click)="loadJudges()"><mat-icon>search</mat-icon> Buscar</button></div>
+                <div class="batch-actions"><button mat-stroked-button type="button" (click)="regenerateSelected()" [disabled]="selectedCount === 0 || regenerating"><mat-icon>key</mat-icon>{{ regenerating ? 'Regenerando…' : 'Regenerar seleccionadas (' + selectedCount + ')' }}</button><span>Regenerar invalida las contraseñas actuales.</span></div>
+                <div class="judge-table"><table><thead><tr><th><input type="checkbox" [checked]="allVisibleSelected" (change)="toggleAll($any($event.target).checked)" aria-label="Seleccionar todos los jueces activos visibles"></th><th>Nombre</th><th>Usuario</th><th>RUT</th><th>Estado</th><th>Acciones</th></tr></thead><tbody><tr *ngFor="let judge of judges"><td><input type="checkbox" [checked]="selectedJudgeIds.has(judge.id)" (change)="toggleJudge(judge.id, $any($event.target).checked)" [disabled]="judge.status === 'DISABLED'" [attr.aria-label]="'Seleccionar a ' + judge.first_name + ' ' + judge.last_name"></td><td>{{ judge.first_name }} {{ judge.last_name }}</td><td>{{ judge.username }}</td><td>{{ judge.rut }}</td><td><span class="judge-status" [class.disabled]="judge.status === 'DISABLED'">{{ judge.access_active ? 'Activo · En turno' : (judge.status === 'DISABLED' ? 'Desactivado manualmente' : 'Inactivo · Fuera de turno') }}</span></td><td class="judge-actions"><button mat-stroked-button type="button" (click)="editJudge(judge)" [attr.aria-label]="'Editar a ' + judge.first_name + ' ' + judge.last_name"><mat-icon>edit</mat-icon> Editar</button><button mat-stroked-button color="primary" type="button" (click)="regenerate(judge)" [attr.aria-label]="'Regenerar credenciales de ' + judge.first_name"><mat-icon>key</mat-icon> Regenerar clave</button><button mat-stroked-button type="button" [class.deactivate-judge-button]="judge.status !== 'DISABLED'" [class.activate-judge-button]="judge.status === 'DISABLED'" (click)="judge.status === 'DISABLED' ? activateJudge(judge) : deactivateJudge(judge)" [attr.aria-label]="(judge.status === 'DISABLED' ? 'Activar a ' : 'Desactivar a ') + judge.first_name + ' ' + judge.last_name"><mat-icon>{{ judge.status === 'DISABLED' ? 'check_circle' : 'block' }}</mat-icon> {{ judge.status === 'DISABLED' ? 'Activar' : 'Desactivar' }}</button><button mat-stroked-button type="button" class="delete-judge-button" (click)="deleteJudge(judge)" [attr.aria-label]="'Eliminar a ' + judge.first_name + ' ' + judge.last_name"><mat-icon>delete_outline</mat-icon> Eliminar</button></td></tr></tbody></table></div>
+            </article>
+        </div>
     </section>
-    <section class="panel logs"><h2>Logs operativos</h2><ul><li *ngFor="let log of logs"><time>{{ log.occurred_at | date:'dd/MM HH:mm:ss':'UTC' }}</time><strong>{{ log.action }}</strong><span>{{ log.details | json }}</span></li></ul></section>
 </main>

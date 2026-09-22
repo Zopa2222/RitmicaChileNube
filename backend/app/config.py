@@ -51,6 +51,9 @@ class Config:
     )
     JWT_TOKEN_LOCATION = ['cookies']
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=8)
+    JUDGE_JWT_ACCESS_TOKEN_EXPIRES = timedelta(
+        hours=int(os.getenv('JUDGE_JWT_ACCESS_TOKEN_EXPIRES_HOURS', '24'))
+    )
     JWT_COOKIE_CSRF_PROTECT = True
     JWT_CSRF_IN_COOKIES = True
     JWT_COOKIE_SECURE = False
@@ -62,6 +65,14 @@ class Config:
 
     RATELIMIT_STORAGE_URI = os.getenv('RATELIMIT_STORAGE_URI', 'memory://')
     RATELIMIT_HEADERS_ENABLED = True
+    LOGIN_IP_RATE_LIMIT = os.getenv(
+        'LOGIN_IP_RATE_LIMIT',
+        '60 per minute;300 per hour',
+    )
+    LOGIN_USERNAME_FAILURE_RATE_LIMIT = os.getenv(
+        'LOGIN_USERNAME_FAILURE_RATE_LIMIT',
+        '5 per minute;20 per hour',
+    )
 
     FILE_STORAGE_BACKEND = os.getenv('FILE_STORAGE_BACKEND', 'local').lower()
     LOCAL_STORAGE_PATH = os.getenv('LOCAL_STORAGE_PATH')

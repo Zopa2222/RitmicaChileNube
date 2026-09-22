@@ -3,6 +3,7 @@ export interface PublicChampionship {
     name: string;
     kind: string;
     zone: string;
+    qualifier_number?: 1 | 2 | null;
     start_date: string;
 }
 

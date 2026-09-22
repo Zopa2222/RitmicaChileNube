@@ -1,5 +1,9 @@
 from datetime import date, datetime, timedelta, timezone
 import uuid
+from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
 
 from sqlalchemy import func, select
 
@@ -29,6 +33,65 @@ from app.services.cloud_scoring_service import submit_administrator_score
 
 
 PASSWORD = 'Clave-Admin-123'
+
+
+@pytest.mark.parametrize('first,second,expected', [
+    (('26', '8', '8'), ('27', '7', '7'), ['Gimnasta Dos', 'Gimnasta Uno']),
+    (('26', '8', '9'), ('26', '9', '8'), ['Gimnasta Dos', 'Gimnasta Uno']),
+    (('26', '8', '8'), ('26', '8', '9'), ['Gimnasta Dos', 'Gimnasta Uno']),
+    (('26', '8', '8'), ('26', '8', '8'), ['Gimnasta Uno', 'Gimnasta Dos']),
+])
+def test_pdf_ranks_by_total_then_e_then_a(app, monkeypatch, first, second, expected):
+    from app.services import cloud_export_service
+
+    context = create_scoring_context()
+    summaries = {
+        gymnast.id: SimpleNamespace(
+            total_score=Decimal(values[0]), e_score=Decimal(values[1]),
+            a_score=Decimal(values[2]), db_score=Decimal('3'),
+            da_score=Decimal('5'), discount=Decimal('0'),
+        )
+        for gymnast, values in zip(context['gymnasts'], (first, second))
+    }
+    monkeypatch.setattr(cloud_export_service, 'refresh_score_summary', summaries.__getitem__)
+    captured = []
+    original_table = cloud_export_service.Table
+
+    def capture_table(rows, *args, **kwargs):
+        captured.extend(row[1].getPlainText() for row in rows[1:])
+        return original_table(rows, *args, **kwargs)
+
+    monkeypatch.setattr(cloud_export_service, 'Table', capture_table)
+    pdf = cloud_export_service.build_pdf(context['championship'])
+    assert pdf.read(5) == b'%PDF-'
+    assert captured == expected
+
+
+def test_excel_exports_individual_judge_scores(app):
+    from openpyxl import load_workbook
+    from app.services.cloud_export_service import build_excel
+
+    context = create_scoring_context()
+    worksheet = load_workbook(build_excel(context['championship'])).active
+    headers = [cell.value for cell in worksheet[1]]
+    assert headers[3:15] == [
+        'DB1', 'DB2', 'DB total', 'DA1', 'DA2', 'DA total',
+        'A1', 'A2', 'A total', 'E1', 'E2', 'E total',
+    ]
+    rows = {
+        row[1]: dict(zip(headers, row))
+        for row in worksheet.iter_rows(min_row=2, values_only=True)
+    }
+    first = rows['Gimnasta Uno']
+    assert sorted([first['DA1'], first['DA2']]) == [5.2, 5.4]
+    assert [first['DB1'], first['DB2']] == [3.1, 3.1]
+    assert sorted([first['A1'], first['A2']]) == [1, 1.61]
+    assert {first['E1'], first['E2']} == {2, None}
+    assert first['Total'] == 26
+    assert first['DB total'] == 3.1
+    assert all(isinstance(first[f'{role} total'], (int, float))
+               for role in ('DB', 'DA', 'A', 'E'))
+    assert rows['Gimnasta Dos']['DA1'] is None
 
 
 def create_user(account_type, username):
@@ -343,6 +406,18 @@ def test_admin_acknowledges_and_updates_da_discrepancy(app, client):
     assert not resolved.get_json()['resolution']['warning_active']
     assert resolved.get_json()['summary']['da_score'] == '5.30'
     assert resolved.get_json()['summary']['total_score'] == '26.10'
+
+    direct_db = client.put(
+        f'{base}/DB',
+        json={'value': '3.25'},
+        headers=headers,
+    )
+    assert direct_db.status_code == 200
+    assert direct_db.get_json()['changed']
+    assert direct_db.get_json()['resolution']['source'] == 'ADMIN'
+    assert direct_db.get_json()['resolution']['effective_value'] == '3.25'
+    assert direct_db.get_json()['summary']['db_score'] == '3.25'
+    assert direct_db.get_json()['summary']['total_score'] == '26.25'
 
     no_discrepancy = client.put(f'{base}/DB', json={}, headers=headers)
     assert no_discrepancy.status_code == 409

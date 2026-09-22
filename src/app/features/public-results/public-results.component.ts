@@ -7,6 +7,8 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import {
     Subject,
@@ -29,11 +31,18 @@ import {
 import {
     PublicResultsService
 } from '../../core/services/public-results.service';
+import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
     selector: 'app-public-results',
     standalone: true,
-    imports: [CommonModule, ReactiveFormsModule, RouterLink],
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatIconModule,
+        ReactiveFormsModule,
+        RouterLink
+    ],
     templateUrl: './public-results.component.html',
     styleUrls: ['./public-results.component.scss']
 })
@@ -43,6 +52,7 @@ export class PublicResultsComponent implements OnInit {
     private resultRequestToken = 0;
 
     readonly searchControl = new FormControl('', { nonNullable: true });
+    readonly user$ = this.authService.user$;
 
     catalog: PublicCatalogResponse | null = null;
     categories: PublicCategorySummary[] = [];
@@ -55,7 +65,8 @@ export class PublicResultsComponent implements OnInit {
     errorMessage = '';
 
     constructor(
-        private readonly publicResultsService: PublicResultsService
+        private readonly publicResultsService: PublicResultsService,
+        private readonly authService: AuthService
     ) { }
 
     ngOnInit(): void {

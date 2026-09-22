@@ -308,6 +308,7 @@ def test_old_activation_is_rejected_after_switching_away_and_back(app, client):
         Bench.A,
         context['gymnast_two'],
         context['admin'].id,
+        allow_replacement=True,
     )
     db.session.commit()
     new_activation, changed, _ = activate_gymnast(
@@ -316,6 +317,7 @@ def test_old_activation_is_rejected_after_switching_away_and_back(app, client):
         Bench.A,
         context['gymnast_one'],
         context['admin'].id,
+        allow_replacement=True,
     )
     assert changed
     db.session.commit()
@@ -343,7 +345,7 @@ def test_old_activation_is_rejected_after_switching_away_and_back(app, client):
     assert current.get_json()['changed']
 
 
-def test_open_window_in_another_assignment_does_not_authorize_score(
+def test_expired_legacy_window_does_not_block_an_effective_assignment(
     app,
     client,
 ):
@@ -423,8 +425,32 @@ def test_open_window_in_another_assignment_does_not_authorize_score(
         headers=headers,
     )
 
-    assert response.status_code == 403
-    assert (
-        response.get_json()['code']
-        == 'ASSIGNMENT_ACCESS_WINDOW_CLOSED'
+    assert response.status_code == 200
+    assert response.get_json()['score']['value'] == '5.00'
+
+
+def test_paused_championship_keeps_judge_connected_but_blocks_scores(
+    app,
+    client,
+):
+    context = create_cabin_context()
+    context['championship'].status = ChampionshipStatus.PAUSED
+    db.session.commit()
+    headers = login_judge(client, context['judge_a'].username)
+
+    contexts = client.get('/api/v1/judge/contexts')
+    assert contexts.status_code == 200
+    assert {
+        item['state'] for item in contexts.get_json()['contexts']
+    } == {'WAITING_FOR_CHAMPIONSHIP'}
+
+    response = client.put(
+        f'/api/v1/judge/scores/{context["entry_a"].id}',
+        json={
+            'activation_id': str(context['activation'].id),
+            'value': '1.20',
+        },
+        headers=headers,
     )
+    assert response.status_code == 403
+    assert response.get_json()['code'] == 'CHAMPIONSHIP_NOT_ACTIVE'

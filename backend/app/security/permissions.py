@@ -6,7 +6,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from app.extensions import db
 from app.models import AccountType, User, UserStatus
-from app.security.access import judge_has_open_access_window
+from app.security.access import judge_has_championship_access
 
 
 def get_authenticated_user():
@@ -47,11 +47,14 @@ def account_types_required(*allowed_account_types):
                 }), 403
             if (
                 user.account_type == AccountType.JUDGE
-                and not judge_has_open_access_window(user.id)
+                and not judge_has_championship_access(user.id)
             ):
                 return jsonify({
-                    'error': 'El juez no tiene una ventana de acceso vigente',
-                    'code': 'ACCESS_WINDOW_CLOSED',
+                    'error': (
+                        'El juez no tiene una asignación vigente en un '
+                        'campeonato en curso'
+                    ),
+                    'code': 'JUDGE_ACCESS_NOT_AVAILABLE',
                 }), 403
             return view_function(user, *args, **kwargs)
 

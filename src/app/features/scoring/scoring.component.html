@@ -24,7 +24,7 @@
             </mat-nav-list>
 
             <div class="sidebar-footer">
-                <button mat-raised-button color="accent" (click)="goToExport()" class="full-width">
+                <button mat-flat-button color="primary" (click)="goToExport()" class="full-width">
                     <mat-icon>file_download</mat-icon>
                     Exportar Resultados
                 </button>
@@ -49,15 +49,15 @@
                         </div>
                     </div>
                     <div class="header-actions">
-                        <button mat-raised-button (click)="addGymnast()">
+                        <button mat-stroked-button (click)="addGymnast()">
                             <mat-icon>add</mat-icon>
                             Agregar Gimnasta
                         </button>
-                        <button mat-raised-button color="primary" (click)="sortByScore()">
+                        <button mat-stroked-button color="primary" (click)="sortByScore()">
                             <mat-icon>sort</mat-icon>
                             Ordenar por Puntaje
                         </button>
-                        <button mat-raised-button color="accent" (click)="saveCategory()">
+                        <button mat-flat-button color="primary" (click)="saveCategory()">
                             <mat-icon>save</mat-icon>
                             Guardar Categoría
                         </button>

@@ -75,17 +75,17 @@
 
         <mat-card-actions class="card-actions">
             <!-- Back to Menu Button -->
-            <button mat-button (click)="goHome()" color="warn">
+            <button mat-stroked-button (click)="goHome()" color="warn">
                 <mat-icon>exit_to_app</mat-icon>
                 Terminar campeonato
             </button>
             <span class="spacer" style="flex: 1 1 auto;"></span>
             <div class="export-actions" style="display: flex; gap: 10px;">
-                <button mat-raised-button color="accent" (click)="exportToPdf()">
+                <button mat-stroked-button color="primary" (click)="exportToPdf()">
                     <mat-icon>picture_as_pdf</mat-icon>
                     Descargar PDF
                 </button>
-                <button mat-raised-button color="primary" (click)="exportToExcel()">
+                <button mat-flat-button color="primary" (click)="exportToExcel()">
                     <mat-icon>file_download</mat-icon>
                     Exportar a Excel
                 </button>

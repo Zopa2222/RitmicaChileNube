@@ -69,14 +69,22 @@
 
                         <mat-form-field appearance="outline">
                             <mat-label>Zona</mat-label>
-                            <input
-                                matInput
-                                formControlName="zone"
-                                placeholder="Centro, Norte, Sur…">
+                            <mat-select formControlName="zone">
+                                <mat-option value="NORTE">Norte</mat-option>
+                                <mat-option value="CENTRO">Centro</mat-option>
+                                <mat-option value="SUR">Sur</mat-option>
+                            </mat-select>
                             <mat-error>Ingresa la zona</mat-error>
                         </mat-form-field>
                     </div>
 
+                    <mat-form-field appearance="outline" *ngIf="championshipForm.controls.kind.value === 'CLASIFICATORIO'">
+                        <mat-label>Clasificatorio</mat-label>
+                        <mat-select formControlName="qualifier_number">
+                            <mat-option [value]="1">Clasificatorio 1</mat-option>
+                            <mat-option [value]="2">Clasificatorio 2</mat-option>
+                        </mat-select>
+                    </mat-form-field>
                     <mat-form-field appearance="outline">
                         <mat-label>Fecha inicial</mat-label>
                         <input
@@ -127,7 +135,7 @@
                 <span>Borrador creado</span>
                 <h2>{{ championship.name }}</h2>
                 <p>
-                    {{ championship.kind }} · Zona {{ championship.zone }} ·
+                    {{ championship.kind }} {{ championship.qualifier_number }} · Zona {{ championship.zone }} ·
                     {{ championship.start_date | date:'dd/MM/yyyy':'UTC' }}
                 </p>
             </div>
@@ -195,21 +203,14 @@
                     pueden dividirse entre ambos tramos.
                 </p>
             </div>
-            <button
-                mat-stroked-button
-                color="primary"
-                type="button"
-                (click)="acceptDetectedCutoffs()"
-                [disabled]="loading">
-                <mat-icon>done_all</mat-icon>
-                Aceptar cortes detectados
-            </button>
         </div>
 
         <article
             *ngFor="let sheet of preview.preview.sheets"
             class="sheet-card"
-            [class.confirmed]="sheet.cutoff_confirmed">
+            [class.confirmed]="sheet.cutoff_confirmed"
+            [class.pending-changes]="isCutoffDirty(sheet)"
+            [class.invalid]="invalidCutoffSequences.has(sheet.sequence)">
             <header>
                 <div>
                     <span>Día {{ sheet.sequence }}</span>
@@ -217,9 +218,13 @@
                 </div>
                 <span class="confirmation-state">
                     <mat-icon>
-                        {{ sheet.cutoff_confirmed ? 'check_circle' : 'pending' }}
+                        {{ isCutoffDirty(sheet)
+                            ? 'pending'
+                            : (sheet.cutoff_confirmed ? 'check_circle' : 'pending') }}
                     </mat-icon>
-                    {{ sheet.cutoff_confirmed ? 'Corte confirmado' : 'Revisión pendiente' }}
+                    {{ isCutoffDirty(sheet)
+                        ? 'Cambios pendientes'
+                        : (sheet.cutoff_confirmed ? 'Corte confirmado' : 'Revisión pendiente') }}
                 </span>
             </header>
 
@@ -274,28 +279,13 @@
                             min="1"
                             [max]="sheet.max_content_row + 1"
                             [value]="manualRows[sheet.sequence] || ''"
-                            (input)="manualRows[sheet.sequence] =
-                                $any($event.target).valueAsNumber">
+                            (input)="manualRowChanged(sheet,
+                                $any($event.target).valueAsNumber)">
                         <mat-hint>
                             Entre 1 y {{ sheet.max_content_row + 1 }}
                         </mat-hint>
                     </mat-form-field>
 
-                    <button
-                        mat-flat-button
-                        color="primary"
-                        type="button"
-                        (click)="saveSheetCutoff(sheet)"
-                        [disabled]="savingSheet !== null">
-                        <mat-spinner
-                            *ngIf="savingSheet === sheet.sequence"
-                            diameter="20">
-                        </mat-spinner>
-                        <mat-icon *ngIf="savingSheet !== sheet.sequence">
-                            save
-                        </mat-icon>
-                        Guardar corte del día
-                    </button>
                 </section>
 
                 <section class="scope-summary">
@@ -343,6 +333,21 @@
                     </div>
                 </div>
             </details>
+
+            <div class="sheet-card-actions">
+                <button
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    (click)="confirmCutoffs(sheet)"
+                    [disabled]="savingCutoffs || (sheet.cutoff_confirmed && !isCutoffDirty(sheet))">
+                    <mat-spinner
+                        *ngIf="savingCutoffSequence === sheet.sequence"
+                        diameter="20"></mat-spinner>
+                    <mat-icon *ngIf="savingCutoffSequence !== sheet.sequence">done_all</mat-icon>
+                    Confirmar cortes AM/PM
+                </button>
+            </div>
         </article>
 
         <div *ngIf="errorMessage" class="error-message" role="alert">
@@ -354,7 +359,7 @@
             <div>
                 <strong>
                     {{ allCutoffsConfirmed
-                        ? 'Todos los cortes están confirmados'
+                        ? (cutoffsDirty ? 'Hay cambios pendientes en los cortes' : 'Todos los cortes están confirmados')
                         : 'Aún existen hojas pendientes' }}
                 </strong>
                 <span>
@@ -366,7 +371,7 @@
                 color="primary"
                 type="button"
                 (click)="confirmImport()"
-                [disabled]="!allCutoffsConfirmed || loading">
+                [disabled]="!canConfirmImport || loading || savingCutoffs">
                 <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
                 <mat-icon *ngIf="!loading">task_alt</mat-icon>
                 Confirmar orden de paso

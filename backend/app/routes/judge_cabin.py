@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
@@ -15,12 +15,10 @@ from app.models import (
     ChampionshipStatus,
     CompetitionDay,
     Gymnast,
-    JudgeAccessWindow,
     JudgeAssignment,
     JudgeRole,
     ScoreEntry,
 )
-from app.security.access import judge_assignment_has_open_access
 from app.security.permissions import account_types_required
 from app.services.championship_operations_service import (
     assignments_effective_for_category,
@@ -86,6 +84,10 @@ def assignment_context(assignment):
         'state': 'WAITING_FOR_GYMNAST',
         'active': None,
     }
+
+    if championship.status != ChampionshipStatus.ACTIVE:
+        response['state'] = 'WAITING_FOR_CHAMPIONSHIP'
+        return response
 
     activation = db.session.execute(
         select(BenchActivation).where(
@@ -153,26 +155,16 @@ def get_judge_contexts(current_user):
     assignments = db.session.execute(
         select(JudgeAssignment)
         .join(
-            JudgeAccessWindow,
-            and_(
-                JudgeAccessWindow.judge_user_id
-                == JudgeAssignment.judge_user_id,
-                JudgeAccessWindow.championship_id
-                == JudgeAssignment.championship_id,
-                JudgeAccessWindow.competition_day_id
-                == JudgeAssignment.competition_day_id,
-            ),
-        )
-        .join(
             Championship,
             Championship.id == JudgeAssignment.championship_id,
         )
         .where(
             JudgeAssignment.judge_user_id == current_user.id,
             JudgeAssignment.superseded_at.is_(None),
-            JudgeAccessWindow.starts_at <= now,
-            JudgeAccessWindow.ends_at > now,
-            Championship.status == ChampionshipStatus.ACTIVE,
+            Championship.status.in_([
+                ChampionshipStatus.ACTIVE,
+                ChampionshipStatus.PAUSED,
+            ]),
         )
         .order_by(
             JudgeAssignment.competition_day_id,
@@ -218,12 +210,6 @@ def update_judge_score(current_user, score_entry_id):
                 'Nota no encontrada',
                 code='SCORE_ENTRY_NOT_FOUND',
                 status=404,
-            )
-        if not judge_assignment_has_open_access(score_entry.assignment):
-            raise ScoreSubmissionError(
-                'La ventana de acceso de esta asignación no está vigente',
-                code='ASSIGNMENT_ACCESS_WINDOW_CLOSED',
-                status=403,
             )
         championship = db.session.execute(
             select(Championship)

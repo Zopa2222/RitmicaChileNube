@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import (
     AccountType,
+    BenchActivation,
     AuditLog,
     Category,
     Championship,
@@ -281,6 +282,25 @@ def public_active_championship():
             category['id'],
         )
     )
+    live_gymnasts = db.session.execute(
+        select(BenchActivation, Gymnast, Category)
+        .join(Gymnast, Gymnast.id == BenchActivation.gymnast_id)
+        .join(Category, Category.id == Gymnast.category_id)
+        .where(
+            BenchActivation.championship_id == championship.id,
+            BenchActivation.deactivated_at.is_(None),
+            BenchActivation.competition_day_id == Category.competition_day_id,
+            Category.championship_id == championship.id,
+            Gymnast.deleted_at.is_(None),
+            Category.deleted_at.is_(None),
+        )
+    ).all()
+    live_gymnasts.sort(
+        key=lambda row: (
+            day_by_id[row[2].competition_day_id].sequence,
+            row[0].bench.value,
+        )
+    )
     return jsonify({
         'championship': {
             'id': str(championship.id),
@@ -290,6 +310,20 @@ def public_active_championship():
             'qualifier_number': championship.qualifier_number,
             'start_date': championship.start_date.isoformat(),
         },
+        'live_gymnasts': [
+            {
+                'gymnast_id': str(gymnast.id),
+                'display_name': gymnast.full_name,
+                'category_id': str(category.id),
+                'category_name': category.name,
+                'bench': activation.bench.value,
+                'session': category.session.value,
+                'competition_day_sequence': day_by_id[
+                    category.competition_day_id
+                ].sequence,
+            }
+            for activation, gymnast, category in live_gymnasts
+        ],
         'query': request.args.get('query', '').strip(),
         'categories': category_payload,
     })

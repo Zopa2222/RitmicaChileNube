@@ -962,6 +962,7 @@ def test_public_catalog_search_and_result_sorting(app, client):
     assert category_payload['gymnast_count'] == 2
     assert category_payload['publication'] is not None
     assert 'gymnasts' not in category_payload
+    assert catalog.get_json()['live_gymnasts'] == []
     assert client.get(
         '/api/v1/public/championships/active',
         query_string={'query': 'sin coincidencias'},
@@ -1010,6 +1011,32 @@ def test_public_catalog_search_and_result_sorting(app, client):
     )
     assert invalid_sort.status_code == 400
     assert invalid_sort.get_json()['code'] == 'INVALID_PUBLIC_SORT'
+
+
+def test_public_catalog_includes_only_active_live_gymnasts(app, client):
+    context = create_scoring_context()
+    active_gymnast = context['gymnasts'][1]
+    db.session.add(BenchActivation(
+        championship_id=context['championship'].id,
+        competition_day_id=context['day'].id,
+        bench=Bench.A,
+        gymnast_id=active_gymnast.id,
+        activated_by_user_id=context['admin'].id,
+    ))
+    db.session.commit()
+
+    response = client.get('/api/v1/public/championships/active')
+
+    assert response.status_code == 200
+    assert response.get_json()['live_gymnasts'] == [{
+        'gymnast_id': str(active_gymnast.id),
+        'display_name': active_gymnast.full_name,
+        'category_id': str(context['category'].id),
+        'category_name': context['category'].name,
+        'bench': 'A',
+        'session': 'AM',
+        'competition_day_sequence': 1,
+    }]
 
 
 def test_full_publication_requires_admin_and_active_championship(

@@ -26,13 +26,13 @@
     <section
         class="portal-grid"
         *ngIf="user.account_type !== 'JUDGE'; else judgePortal">
-        <mat-card>
+        <mat-card class="championships-card">
             <mat-icon>emoji_events</mat-icon>
             <h2>Campeonatos</h2>
             <p>Consulta los campeonatos disponibles y continúa su operación.</p>
             <a mat-flat-button color="primary" routerLink="/championships">
-                <mat-icon>emoji_events</mat-icon>
-                Abrir campeonatos
+                <mat-icon>speed</mat-icon>
+                Ir a operación
             </a>
         </mat-card>
 

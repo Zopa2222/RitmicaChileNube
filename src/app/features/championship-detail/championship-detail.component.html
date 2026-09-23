@@ -35,9 +35,14 @@
                     *ngIf="item.counts.days > 0"
                     mat-flat-button color="primary" class="operation-action"
                     [routerLink]="['/championships', item.id, 'operations']">
-                    <mat-icon>scoreboard</mat-icon>
+                    <mat-icon>bolt</mat-icon>
                     Operación en vivo
                 </a>
+            </div>
+        </header>
+
+        <nav class="championship-actions" aria-label="Acciones del campeonato">
+            <div class="export-actions" *ngIf="item.counts.days > 0" aria-label="Exportaciones">
                 <button *ngIf="item.counts.days > 0" mat-stroked-button type="button"
                     (click)="download('excel')" [disabled]="downloading">
                     <mat-icon>table_view</mat-icon> Exportar Excel
@@ -46,17 +51,16 @@
                     (click)="download('pdf')" [disabled]="downloading">
                     <mat-icon>picture_as_pdf</mat-icon> Exportar PDF
                 </button>
-                <a
-                    *ngIf="item.status === 'DRAFT' && item.counts.days === 0"
-                    mat-flat-button
-                    color="primary"
-                    [routerLink]="['/championships', item.id, 'import']">
-                    <mat-icon>upload_file</mat-icon>
-                    Cargar orden de paso
+            </div>
+            <div class="lifecycle-actions">
+                <a *ngIf="item.status === 'DRAFT' && item.counts.days === 0"
+                    mat-stroked-button class="action-tag" [routerLink]="['/championships', item.id, 'import']">
+                    <mat-icon>upload_file</mat-icon> Cargar orden de paso
                 </a>
                 <button
                     *ngIf="item.status === 'DRAFT' || item.status === 'PAUSED'"
                     mat-stroked-button
+                    class="action-tag"
                     type="button"
                     (click)="activate()"
                     [disabled]="processing || item.counts.categories === 0">
@@ -66,6 +70,7 @@
                 <button
                     *ngIf="item.status === 'ACTIVE'"
                     mat-stroked-button
+                    class="action-tag"
                     type="button"
                     (click)="pause()"
                     [disabled]="processing">
@@ -76,9 +81,9 @@
                     *ngIf="item.status !== 'CLOSED'
                         && item.status !== 'PENDING_DELETION'
                         && item.status !== 'DELETED'"
-                    mat-button
+                    mat-stroked-button
                     type="button"
-                    class="danger-action"
+                    class="action-tag danger-tag"
                     (click)="close()"
                     [disabled]="processing">
                     <mat-icon>stop_circle</mat-icon>
@@ -93,13 +98,13 @@
                 </button>
                 <button
                     *ngIf="item.status !== 'PENDING_DELETION' && item.status !== 'DELETED'"
-                    mat-button class="danger-action" type="button" (click)="requestDeletion()"
+                    mat-stroked-button class="action-tag danger-tag" type="button" (click)="requestDeletion()"
                     [disabled]="processing">
                     <mat-icon>delete_outline</mat-icon>
                     Eliminar
                 </button>
             </div>
-        </header>
+        </nav>
 
         <section class="metadata-grid">
             <mat-card>

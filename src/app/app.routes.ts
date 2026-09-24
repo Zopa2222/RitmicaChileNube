@@ -7,6 +7,7 @@ import {
     PublicResultsComponent
 } from './features/public-results/public-results.component';
 import { LoginComponent } from './features/login/login.component';
+import { JudgeAccessComponent } from './features/judge-access/judge-access.component';
 import { PortalComponent } from './features/portal/portal.component';
 import {
     AccessDeniedComponent
@@ -32,6 +33,12 @@ export const routes: Routes = [
     { path: 'resultados', redirectTo: '', pathMatch: 'full' },
     {
         path: 'ingresar',
+        redirectTo: 'administracion/ingresar',
+        pathMatch: 'full'
+    },
+    { path: 'acceso-juez', component: JudgeAccessComponent },
+    {
+        path: 'administracion/ingresar',
         component: LoginComponent,
         canActivate: [guestGuard]
     },

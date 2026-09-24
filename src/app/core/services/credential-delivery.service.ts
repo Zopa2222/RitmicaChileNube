@@ -11,7 +11,7 @@ export interface CredentialDeliveryEntry {
     lastName: string;
     rut: string;
     username: string;
-    password: string;
+    accessUrl: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -38,10 +38,22 @@ export class CredentialDeliveryService {
             lastName: judge.last_name,
             rut: formatRut(judge.rut),
             username: credentials.username,
-            password: credentials.password
+            accessUrl: new URL(credentials.access_path, window.location.origin).href
         };
-        const entries = this.entries.filter((item) => item.judgeId !== judge.id);
+        const entries = this.entries.filter((item) => item.username !== credentials.username);
         this.entriesSubject.next([...entries, entry]);
+    }
+
+    addImported(name: string, credentials: InitialCredentials): void {
+        const entries = this.entries.filter((item) => item.username !== credentials.username);
+        this.entriesSubject.next([...entries, {
+            judgeId: credentials.username,
+            firstName: name,
+            lastName: '',
+            rut: '',
+            username: credentials.username,
+            accessUrl: new URL(credentials.access_path, window.location.origin).href
+        }]);
     }
 
     clear(): void {

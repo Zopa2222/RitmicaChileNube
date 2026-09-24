@@ -31,13 +31,13 @@ from app.routes.cloud_championships import (
     validation_error,
 )
 from app.security.passwords import hash_password
+from app.security.judge_links import issue_judge_link
 from app.security.permissions import account_types_required
 from app.security.access import judge_has_championship_access
 from app.services.file_storage_service import FileStorageError, delete_object
 from app.services.judge_account_service import (
     JudgeAccountError,
     create_judge_account,
-    generate_initial_password,
     normalize_rut,
 )
 
@@ -268,14 +268,13 @@ def activate_judge(current_user, judge_id):
 
 
 @bp.post('/admin/judges/<judge_id>/credentials/regenerate')
+@bp.post('/admin/judges/<judge_id>/access-link')
 @account_types_required(*ADMINS)
 def regenerate_judge_credentials(current_user, judge_id):
     judge = _get_judge_or_error(judge_id)
     if judge is None:
         return validation_error('Juez no encontrado', code='JUDGE_NOT_FOUND', status=404)
-    password = generate_initial_password()
-    judge.password_hash = hash_password(password)
-    judge.status = UserStatus.ACTIVE
+    credentials = issue_judge_link(judge)
     db.session.add(CredentialEvent(
         user_id=judge.id,
         event_type=CredentialEventType.REGENERATED,
@@ -286,11 +285,12 @@ def regenerate_judge_credentials(current_user, judge_id):
     db.session.commit()
     return jsonify({
         'judge': _judge_response(judge),
-        'credentials': {'username': judge.username, 'password': password},
+        'credentials': credentials,
     })
 
 
 @bp.post('/admin/judges/credentials/regenerate-batch')
+@bp.post('/admin/judges/access-links')
 @account_types_required(*ADMINS)
 def regenerate_judge_credentials_batch(current_user):
     """Regenerate a selected group atomically without persisting plain text."""
@@ -299,9 +299,7 @@ def regenerate_judge_credentials_batch(current_user):
         judges = _get_judges_for_batch(payload.get('judge_ids'))
         items = []
         for judge in judges:
-            password = generate_initial_password()
-            judge.password_hash = hash_password(password)
-            judge.status = UserStatus.ACTIVE
+            credentials = issue_judge_link(judge)
             db.session.add(CredentialEvent(
                 user_id=judge.id,
                 event_type=CredentialEventType.REGENERATED,
@@ -316,7 +314,7 @@ def regenerate_judge_credentials_batch(current_user):
             )
             items.append({
                 'judge': _judge_response(judge),
-                'credentials': {'username': judge.username, 'password': password},
+                'credentials': credentials,
             })
         db.session.commit()
     except LookupError as error:

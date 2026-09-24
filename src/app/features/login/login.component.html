@@ -12,9 +12,9 @@
 
     <mat-card class="login-card">
         <mat-card-header>
-            <mat-card-title>Ingresar al sistema</mat-card-title>
+            <mat-card-title>Acceso de administración</mat-card-title>
             <mat-card-subtitle>
-                Administración y cabina de jueces
+                Administrador y superadministrador
             </mat-card-subtitle>
         </mat-card-header>
 
@@ -25,14 +25,6 @@
                 role="status">
                 <mat-icon>schedule</mat-icon>
                 Tu sesión terminó. Ingresa nuevamente para continuar.
-            </div>
-
-            <div
-                *ngIf="judgeAccessUnavailable"
-                class="notice"
-                role="status">
-                <mat-icon>lock_clock</mat-icon>
-                Tu acceso de juez no está disponible para un campeonato en curso.
             </div>
 
             <form [formGroup]="form" (ngSubmit)="submit()" novalidate>

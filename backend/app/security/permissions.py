@@ -2,7 +2,7 @@ import uuid
 from functools import wraps
 
 from flask import jsonify
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
 from app.extensions import db
 from app.models import AccountType, User, UserStatus
@@ -17,8 +17,18 @@ def get_authenticated_user():
         return None
 
     user = db.session.get(User, user_id)
-    if user is None or user.status != UserStatus.ACTIVE:
+    if user is None:
         return None
+    if user.status != UserStatus.ACTIVE:
+        return None
+    if user.account_type == AccountType.JUDGE:
+        claims = get_jwt()
+        if (
+            claims.get('auth_method') != 'judge_link'
+            or not user.judge_access_version
+            or claims.get('judge_access_version') != user.judge_access_version
+        ):
+            return None
     return user
 
 

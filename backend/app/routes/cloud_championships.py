@@ -11,6 +11,7 @@ from app.extensions import db
 from app.models import (
     AccountType,
     AuditLog,
+    Bench,
     Category,
     Championship,
     ChampionshipStatus,
@@ -18,18 +19,34 @@ from app.models import (
     FileKind,
     FileObject,
     Gymnast,
+    JudgeAssignment,
+    JudgeRole,
     ImportPreview,
+    Session,
     SystemRole,
+    User,
+    UserStatus,
 )
 from app.security.permissions import account_types_required
 from app.services.cloud_excel_service import (
     ExcelImportError,
     analyze_excel,
-    confirmed_import_plan,
     render_preview,
     validate_cutoff_decisions,
+    single_day_analysis,
+    confirmed_single_day_plan,
 )
 from app.services.file_storage_service import delete_object, store_bytes
+from app.services.judge_account_service import (
+    JudgeAccountError,
+    create_judge_account,
+    normalize_rut,
+)
+from app.services.championship_operations_service import (
+    ChampionshipOperationError,
+    initialize_score_entries_for_assignment,
+    recalculate_judge_access_window,
+)
 
 
 bp = Blueprint(
@@ -251,6 +268,42 @@ def create_import_preview(current_user, championship_id):
             code='CHAMPIONSHIP_NOT_DRAFT',
             status=409,
         )
+    try:
+        competition_date = date.fromisoformat(
+            str(request.form.get('competition_date') or '')
+        )
+    except ValueError:
+        return validation_error('Debe seleccionar una fecha válida para el día')
+    if competition_date < championship.start_date:
+        return validation_error('La fecha no puede ser anterior al primer día del campeonato')
+    existing_date = db.session.execute(
+        select(CompetitionDay.id).where(
+            CompetitionDay.championship_id == championship.id,
+            CompetitionDay.competition_date == competition_date,
+        )
+    ).scalar_one_or_none()
+    if existing_date:
+        return validation_error('Ya existe un día con esa fecha', code='COMPETITION_DAY_CONFLICT', status=409)
+
+    existing_days = db.session.execute(
+        select(CompetitionDay.sequence).where(
+            CompetitionDay.championship_id == championship.id
+        )
+    ).scalars().all()
+    next_sequence = max(existing_days, default=0) + 1
+    pending = db.session.execute(
+        select(ImportPreview).where(
+            ImportPreview.championship_draft_id == championship.id,
+            ImportPreview.expires_at > datetime.now(timezone.utc),
+        )
+    ).scalars().all()
+    reserved = [
+        item.detected_data.get('sheets', [{}])[0].get('sequence', 0)
+        for item in pending
+        if item.detected_data.get('sheets')
+        and not item.decisions.get('import_confirmed_at')
+    ]
+    proposed_sequence = max([next_sequence - 1, *reserved], default=0) + 1
 
     upload = request.files.get('file')
     if upload is None or not upload.filename:
@@ -267,6 +320,15 @@ def create_import_preview(current_user, championship_id):
 
     try:
         analysis = analyze_excel(contents)
+        if not analysis.get('has_judges_sheet'):
+            raise ExcelImportError('Falta la hoja obligatoria Jueces')
+        if not analysis.get('judges'):
+            raise ExcelImportError('La hoja Jueces no contiene jueces con RUT y roles válidos')
+        if len(analysis['sheets']) != 1:
+            raise ExcelImportError(
+                'Cada archivo debe contener exactamente una hoja de orden del día'
+            )
+        analysis = single_day_analysis(analysis, proposed_sequence)
         # Ensure the automatically selected cut does not split categories.
         render_preview(analysis)
     except ExcelImportError as error:
@@ -307,6 +369,7 @@ def create_import_preview(current_user, championship_id):
                     'confirmed': False,
                     'source': 'AUTO',
                 }
+        decisions['competition_date'] = competition_date.isoformat()
 
         preview = ImportPreview(
             championship_draft_id=championship.id,
@@ -469,36 +532,68 @@ def confirm_import_preview(current_user, championship_id, preview_id):
             code='IMPORT_ALREADY_CONFIRMED',
             status=409,
         )
-    existing_days = db.session.execute(
-        select(func.count(CompetitionDay.id)).where(
-            CompetitionDay.championship_id == championship.id
-        )
-    ).scalar_one()
-    if existing_days:
-        return validation_error(
-            'El campeonato ya contiene un orden de paso',
-            code='CHAMPIONSHIP_ALREADY_IMPORTED',
-            status=409,
-        )
-
     try:
-        import_plan = confirmed_import_plan(
+        day_sequence = preview.detected_data['sheets'][0]['sequence']
+        cutoff = preview.decisions.get('sheets', {}).get(str(day_sequence), {})
+        if not cutoff.get('confirmed'):
+            raise ExcelImportError(
+                f'Falta confirmar el corte AM/PM del día {day_sequence}'
+            )
+        import_plan = [confirmed_single_day_plan(
             preview.detected_data,
-            preview.decisions,
+            cutoff.get('cutoff_row'),
+        )]
+        competition_date = date.fromisoformat(
+            str(preview.decisions.get('competition_date') or '')
         )
     except ExcelImportError as error:
         return validation_error(str(error), code='UNCONFIRMED_CUTOFF')
+    except (ValueError, TypeError):
+        return validation_error('Debe seleccionar una fecha válida para el día')
 
+    if competition_date < championship.start_date:
+        return validation_error('La fecha no puede ser anterior al primer día del campeonato')
+
+    existing_day = db.session.execute(
+        select(CompetitionDay.id).where(
+            CompetitionDay.championship_id == championship.id,
+            (CompetitionDay.sequence == day_sequence)
+            | (CompetitionDay.competition_date == competition_date),
+        )
+    ).scalar_one_or_none()
+    if existing_day:
+        return validation_error(
+            'Ya existe un día con esa secuencia o fecha',
+            code='COMPETITION_DAY_CONFLICT',
+            status=409,
+        )
+
+    source_file = db.session.get(FileObject, preview.source_file_id)
+    if source_file is None:
+        return validation_error(
+            'No se encontró la planilla fuente',
+            code='SOURCE_FILE_NOT_FOUND',
+            status=409,
+        )
     total_categories = 0
     total_gymnasts = 0
+    new_judge_credentials = []
     try:
         for sheet in import_plan:
+            max_sequence = db.session.execute(
+                select(func.max(CompetitionDay.sequence)).where(
+                    CompetitionDay.championship_id == championship.id
+                )
+            ).scalar_one() or 0
+            if sheet['sequence'] != max_sequence + 1:
+                raise ExcelImportError(
+                    'Otro día fue agregado mientras revisabas la planilla. Vuelve a cargarla.'
+                )
             competition_day = CompetitionDay(
                 championship_id=championship.id,
                 sequence=sheet['sequence'],
                 competition_date=(
-                    championship.start_date
-                    + timedelta(days=sheet['sequence'] - 1)
+                    competition_date
                 ),
                 source_sheet_name=sheet['name'],
             )
@@ -530,6 +625,93 @@ def confirm_import_preview(current_user, championship_id, preview_id):
                     )
                     total_gymnasts += 1
 
+            for judge_data in sheet['judges']:
+                rut = normalize_rut(judge_data['rut'])
+                judge = db.session.execute(
+                    select(User).where(User.rut_normalized == rut)
+                ).scalar_one_or_none()
+                credentials = None
+                if judge is None:
+                    judge, credentials = create_judge_account(
+                        judge_data['first_name'],
+                        judge_data['last_name'],
+                        rut,
+                        current_user.id,
+                    )
+                    if credentials:
+                        new_judge_credentials.append({
+                            'judge': judge_data['full_name'],
+                            **credentials,
+                        })
+                if judge.account_type != AccountType.JUDGE:
+                    raise JudgeAccountError(
+                        'El RUT de un juez pertenece a otra cuenta'
+                    )
+                if judge.status == UserStatus.DISABLED:
+                    # Import assignments without undoing a manual deactivation.
+                    # Authentication still requires an ACTIVE account.
+                    pass
+                if judge.status == UserStatus.LOCKED:
+                    raise JudgeAccountError(
+                        f'La cuenta de {judge_data["full_name"]} está bloqueada'
+                    )
+                if db.session.execute(
+                    select(JudgeAssignment.id).where(
+                        JudgeAssignment.championship_id == championship.id,
+                        JudgeAssignment.judge_user_id == judge.id,
+                        JudgeAssignment.competition_day_id == competition_day.id,
+                        JudgeAssignment.bench == Bench(judge_data['bench']),
+                        JudgeAssignment.session == Session(judge_data['session']),
+                        JudgeAssignment.superseded_at.is_(None),
+                    ).limit(1)
+                ).scalar_one_or_none():
+                    raise ExcelImportError(
+                        f'{judge_data["full_name"]} ya tiene una asignación '
+                        'en esa banca y jornada'
+                    )
+                role_count = db.session.execute(select(func.count(JudgeAssignment.id)).where(
+                    JudgeAssignment.competition_day_id == competition_day.id,
+                    JudgeAssignment.bench == Bench(judge_data['bench']),
+                    JudgeAssignment.session == Session(judge_data['session']),
+                    JudgeAssignment.role == JudgeRole(judge_data['role']),
+                    JudgeAssignment.superseded_at.is_(None),
+                )).scalar_one()
+                if role_count >= 4:
+                    raise ExcelImportError('Máximo 4 jueces por área, banca y jornada')
+                role = JudgeRole(judge_data['role'])
+                bench = Bench(judge_data['bench'])
+                session = Session(judge_data['session'])
+                categories = db.session.execute(
+                    select(Category).where(
+                        Category.competition_day_id == competition_day.id,
+                        Category.bench == bench,
+                        Category.session == session,
+                    ).order_by(Category.passing_order)
+                ).scalars().all()
+                if not categories:
+                    raise ExcelImportError(
+                        f'No hay categorías para juez {judge_data["full_name"]}, '
+                        f'banca {bench.value}, jornada {session.value}'
+                    )
+                assignment = JudgeAssignment(
+                    championship_id=championship.id,
+                    judge_user_id=judge.id,
+                    competition_day_id=competition_day.id,
+                    bench=bench,
+                    session=session,
+                    role=role,
+                    effective_from_category_id=categories[0].id,
+                    assigned_by_user_id=current_user.id,
+                )
+                db.session.add(assignment)
+                db.session.flush()
+                initialize_score_entries_for_assignment(assignment, categories)
+                recalculate_judge_access_window(
+                    judge.id, championship, competition_day
+                )
+
+        source_file.championship_id = championship.id
+
         updated_decisions = dict(preview.decisions)
         updated_decisions['import_confirmed_at'] = (
             datetime.now(timezone.utc).isoformat()
@@ -551,11 +733,11 @@ def confirm_import_preview(current_user, championship_id, preview_id):
             )
         )
         db.session.commit()
-    except IntegrityError:
+    except (IntegrityError, JudgeAccountError, ChampionshipOperationError, ExcelImportError):
         db.session.rollback()
         current_app.logger.exception('Import confirmation violated data rules')
         return validation_error(
-            'La importación contiene datos incompatibles',
+            'La importación contiene datos incompatibles con categorías o jueces',
             code='IMPORT_CONFLICT',
             status=409,
         )
@@ -566,5 +748,6 @@ def confirm_import_preview(current_user, championship_id, preview_id):
             'days': len(import_plan),
             'categories': total_categories,
             'gymnasts': total_gymnasts,
+            'new_judge_credentials': new_judge_credentials,
         },
     })

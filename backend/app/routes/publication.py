@@ -92,8 +92,19 @@ def error_response(error):
     }), error.status
 
 
+def published_breakdown_response(result):
+    return {
+        field: (
+            decimal_response(getattr(result, field))
+            if getattr(result, field) is not None else None
+        )
+        for field in ('db_score', 'da_score', 'discount')
+    }
+
+
 def published_result_response(result):
     return {
+        **published_breakdown_response(result),
         'gymnast_id': str(result.gymnast_id),
         'display_name': result.display_name,
         'club_name': result.club_name,
@@ -383,6 +394,9 @@ def public_category_results(category_id):
     for gymnast in gymnasts:
         published = published_by_gymnast_id.get(gymnast.id)
         public_results.append({
+            **(published_breakdown_response(published) if published else {
+                'db_score': '0.00', 'da_score': '0.00', 'discount': '0.00',
+            }),
             'gymnast_id': str(gymnast.id),
             'display_name': (
                 published.display_name

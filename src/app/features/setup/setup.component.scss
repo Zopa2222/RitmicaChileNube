@@ -106,6 +106,124 @@
     justify-self: end;
 }
 
+.initial-days {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.initial-days h3,
+.initial-days small {
+    margin: 0;
+}
+
+.initial-days h3 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.required-label {
+    padding: 0.2rem 0.5rem;
+    color: #991b1b;
+    border-radius: 999px;
+    background: #fee2e2;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+.initial-days-help {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.initial-day-row {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.initial-days .initial-day-row > label,
+.initial-planilla,
+.competition-date-field,
+.add-day-panel label {
+    display: grid;
+    gap: 0.4rem;
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.initial-planilla-actions {
+    display: grid;
+    min-height: 40px;
+    align-items: start;
+    gap: 0.5rem;
+}
+
+.initial-days .native-file-input {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-height: 40px;
+    padding: 0.25rem;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.initial-days .native-file-input::file-selector-button {
+    min-height: 30px;
+    margin-right: 0.5rem;
+    padding: 0.3rem 0.7rem;
+    color: #3730a3;
+    border: 1px solid #a5b4fc;
+    border-radius: 5px;
+    background: #eef2ff;
+    cursor: pointer;
+}
+
+.initial-days .native-file-input::file-selector-button:hover {
+    background: #e0e7ff;
+}
+
+.initial-planilla-actions small {
+    overflow-wrap: anywhere;
+    color: #64748b;
+    font-weight: 400;
+}
+
+.sample-workbook-link {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.35rem;
+    color: #4338ca;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.sample-workbook-link:hover {
+    text-decoration: underline;
+}
+
+.initial-days input,
+.competition-date-field input,
+.add-day-panel input {
+    min-height: 40px;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+}
+
 .help-card {
     padding: 1.5rem;
     color: #3730a3;
@@ -475,6 +593,10 @@ summary {
         grid-template-columns: 1fr;
     }
 
+    .initial-day-row {
+        grid-template-columns: 1fr;
+    }
+
     .category-list > div {
         grid-template-columns: 1fr 1fr;
     }
@@ -482,4 +604,12 @@ summary {
     .category-list strong {
         grid-column: 1 / -1;
     }
+}
+
+.judge-preview {
+    padding: 1.25rem;
+    ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .75rem; padding: 0; list-style: none; }
+    li { display: flex; align-items: center; gap: .8rem; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 10px; color: #334155; background: #f8fafc; }
+    strong { color: #0f172a; }
+    .judge-role-badge { padding: .6rem; border-radius: 8px; background: #e0e7ff; color: #312e81; font-weight: 800; }
 }

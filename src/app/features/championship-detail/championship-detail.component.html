@@ -1,4 +1,5 @@
 <main class="detail-page">
+    <app-judge-link-delivery></app-judge-link-delivery>
     <a mat-button routerLink="/championships" class="back-link">
         <mat-icon>arrow_back</mat-icon>
         Volver a campeonatos
@@ -55,7 +56,7 @@
             <div class="lifecycle-actions">
                 <a *ngIf="item.status === 'DRAFT' && item.counts.days === 0"
                     mat-stroked-button class="action-tag" [routerLink]="['/championships', item.id, 'import']">
-                    <mat-icon>upload_file</mat-icon> Cargar orden de paso
+                    <mat-icon>upload_file</mat-icon> Agregar día inicial
                 </a>
                 <button
                     *ngIf="item.status === 'DRAFT' || item.status === 'PAUSED'"
@@ -129,32 +130,25 @@
             </mat-card>
         </section>
 
-        <section
-            *ngIf="item.status === 'DRAFT' && item.counts.days === 0"
-            class="next-step">
-            <mat-icon>upload_file</mat-icon>
-            <div>
-                <h2>Falta cargar el orden de paso</h2>
-                <p>
-                    El Excel se analizará antes de crear días, categorías y
-                    gimnastas. Podrás revisar y corregir el corte AM/PM.
-                </p>
-            </div>
-            <a
-                mat-flat-button
-                color="primary"
-                [routerLink]="['/championships', item.id, 'import']">
-                <mat-icon>upload_file</mat-icon>
-                Continuar importación
-            </a>
-        </section>
-
-        <section *ngIf="competitionDays.length" class="days-section">
+        <section *ngIf="competitionDays.length || item.status === 'DRAFT'" class="days-section">
             <div class="section-heading">
                 <div>
                     <span class="eyebrow">Orden confirmado</span>
                     <h2>Días de competencia</h2>
                 </div>
+            </div>
+            <div class="add-day-panel" *ngIf="item.status === 'DRAFT'">
+                <h3>Agregar día de competencia</h3>
+                <label>Fecha <input type="date" [min]="item.start_date" [(ngModel)]="selectedDayDate"></label>
+                <label>Planilla del día
+                    <input type="file" accept=".xlsx" (change)="selectCompetitionDayFile($event)">
+                </label>
+                <button mat-flat-button color="primary" type="button"
+                    (click)="uploadCompetitionDay()"
+                    [disabled]="processing || !selectedDayDate || !selectedDayFile">
+                    <mat-icon>upload_file</mat-icon> Analizar y agregar día
+                </button>
+                <small>El archivo debe incluir una hoja Jueces y una hoja con el orden de paso.</small>
             </div>
             <div class="days-grid">
                 <mat-card *ngFor="let day of competitionDays">
@@ -215,6 +209,7 @@
                                 aria-label="Buscar juez">
                         </span>
                     </label>
+                    <p *ngIf="assignmentAreaFull" role="alert">Esta área ya tiene 4 jueces en la banca y jornada seleccionadas.</p>
                     <div class="judge-search-results" *ngIf="judgeSearchText.trim() && !assignmentDraft.judgeId && !showNewJudgeForm">
                         <p *ngIf="searchingJudges">Buscando jueces…</p>
                         <button mat-button *ngFor="let judge of judgeSearchResults" type="button" (click)="selectJudge(judge)">
@@ -234,7 +229,7 @@
                         <label>Apellido<input placeholder="Apellido" [(ngModel)]="assignmentDraft.lastName"></label>
                         <label>RUT<input placeholder="12.345.678-5" [(ngModel)]="assignmentDraft.rut" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" (ngModelChange)="formatInlineRut($event)"></label>
                     </ng-container>
-                    <button mat-flat-button color="primary" type="button" (click)="createAssignment()" [disabled]="managingAssignments || (!assignmentDraft.judgeId && (!showNewJudgeForm || inlineJudgeInvalid))">
+                    <button mat-flat-button color="primary" type="button" (click)="createAssignment()" [disabled]="managingAssignments || assignmentAreaFull || (!assignmentDraft.judgeId && (!showNewJudgeForm || inlineJudgeInvalid))">
                         <mat-icon>check_circle</mat-icon> Asignar juez
                     </button>
                 </div>

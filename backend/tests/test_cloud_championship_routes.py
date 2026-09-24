@@ -66,6 +66,9 @@ def small_excel():
         1, 'Gimnasta A3', 'Club A', 'JUNIOR A',
         1, 'Gimnasta B3', 'Club B', 'JUNIOR B',
     ])
+    judges = workbook.create_sheet("Jueces")
+    judges.append(["JORNADA AM", None, None, None, None, None])
+    judges.append(["María Pérez", "12.345.678-5", "DA", None, None, None])
     output = BytesIO()
     workbook.save(output)
     workbook.close()
@@ -93,7 +96,7 @@ def test_admin_imports_preview_and_confirms_order_of_passage(app, client):
 
     upload_response = client.post(
         f'/api/v1/championships/{championship_id}/import-previews',
-        data={'file': (small_excel(), 'orden-centro.xlsx')},
+        data={'file': (small_excel(), 'orden-centro.xlsx'), 'competition_date': '2026-08-01'},
         headers=headers,
         content_type='multipart/form-data',
     )
@@ -133,7 +136,8 @@ def test_admin_imports_preview_and_confirms_order_of_passage(app, client):
         headers=headers,
     )
     assert confirmation.status_code == 200
-    assert confirmation.get_json()['imported'] == {
+    imported = confirmation.get_json()['imported']
+    assert {key: imported[key] for key in ('days', 'categories', 'gymnasts')} == {
         'days': 1,
         'categories': 4,
         'gymnasts': 6,

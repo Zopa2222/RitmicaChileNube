@@ -97,11 +97,11 @@ export class CloudOperationsApiService {
         request: CreateJudgeAssignmentRequest
     ): Observable<{
         assignment: JudgeAssignment;
-        credentials: { username: string; password: string } | null;
+        credentials: { username: string; access_path: string } | null;
     }> {
         return this.http.post<{
             assignment: JudgeAssignment;
-            credentials: { username: string; password: string } | null;
+            credentials: { username: string; access_path: string } | null;
         }>(`${this.apiUrl}/${championshipId}/judge-assignments`, request);
     }
 
@@ -111,11 +111,11 @@ export class CloudOperationsApiService {
         request: ReassignJudgeRequest
     ): Observable<{
         assignment: JudgeAssignment;
-        credentials: { username: string; password: string } | null;
+        credentials: { username: string; access_path: string } | null;
     }> {
         return this.http.post<{
             assignment: JudgeAssignment;
-            credentials: { username: string; password: string } | null;
+            credentials: { username: string; access_path: string } | null;
         }>(
             `${this.apiUrl}/${championshipId}/judge-assignments/${assignmentId}/reassign`,
             request

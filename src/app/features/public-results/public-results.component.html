@@ -11,8 +11,8 @@
             </span>
         </a>
         <nav *ngIf="!(user$ | async)" class="internal-access" aria-label="Acceso al sistema">
-            <span>Jueces y administración</span>
-            <a mat-stroked-button routerLink="/ingresar" class="login-link">
+            <span>Administración</span>
+            <a mat-stroked-button routerLink="/administracion/ingresar" class="login-link">
                 <mat-icon>login</mat-icon>
                 Iniciar sesión
             </a>
@@ -237,7 +237,10 @@
                             <span role="columnheader">Posición</span>
                             <span role="columnheader">Gimnasta</span>
                             <span role="columnheader">Club</span>
-                            <span role="columnheader">Puntaje</span>
+                            <span class="numeric-header" role="columnheader">DB</span>
+                            <span class="numeric-header" role="columnheader">DA</span>
+                            <span class="numeric-header" role="columnheader">Descuento</span>
+                            <span class="numeric-header" role="columnheader">Total</span>
                         </div>
                         <div
                             *ngFor="
@@ -274,10 +277,19 @@
                             >
                                 {{ result.club_name || '—' }}
                             </span>
+                            <span class="breakdown-cell" role="cell" data-label="DB">
+                                {{ result.db_score ?? '—' }}
+                            </span>
+                            <span class="breakdown-cell" role="cell" data-label="DA">
+                                {{ result.da_score ?? '—' }}
+                            </span>
+                            <span class="breakdown-cell" role="cell" data-label="Descuento">
+                                {{ result.discount ?? '—' }}
+                            </span>
                             <span
                                 class="score-cell"
                                 role="cell"
-                                data-label="Puntaje"
+                                data-label="Total"
                             >
                                 {{ result.total_score }}
                             </span>

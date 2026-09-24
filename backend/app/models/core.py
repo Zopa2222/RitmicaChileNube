@@ -87,6 +87,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, db.Model):
     rut_normalized: Mapped[str | None] = mapped_column(String(16), unique=True)
     username: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    judge_access_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    judge_access_version: Mapped[str | None] = mapped_column(String(36))
     status: Mapped[UserStatus] = mapped_column(
         enum_type(UserStatus, 'user_status'),
         default=UserStatus.ACTIVE,
@@ -816,6 +818,9 @@ class PublishedResult(UUIDPrimaryKeyMixin, db.Model):
     display_name: Mapped[str] = mapped_column(String(180), nullable=False)
     club_name: Mapped[str] = mapped_column(String(180), nullable=False)
     passing_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    db_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    da_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    discount: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     total_score: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
     e_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
     a_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)

@@ -16,7 +16,7 @@ from app.models import (
     Session,
 )
 from app.security.passwords import hash_password
-from app.security.passwords import verify_password
+from app.security.judge_links import token_digest
 
 
 PASSWORD = 'Clave-Segura-123'
@@ -72,7 +72,7 @@ def test_super_admin_manages_judges_and_credentials(app, client):
         f'/api/v1/admin/judges/{judge_id}/credentials/regenerate', headers=headers,
     )
     assert regenerated.status_code == 200
-    assert regenerated.get_json()['credentials']['password']
+    assert regenerated.get_json()['credentials']['access_path']
 
     deactivated = client.post(
         f'/api/v1/admin/judges/{judge_id}/deactivate', headers=headers,
@@ -122,7 +122,7 @@ def test_global_admin_manages_judges_and_credentials(app, client):
         f'/api/v1/admin/judges/{judge_id}/credentials/regenerate', headers=headers,
     )
     assert regenerated.status_code == 200
-    assert regenerated.get_json()['credentials']['password']
+    assert regenerated.get_json()['credentials']['access_path']
 
     deactivated = client.post(
         f'/api/v1/admin/judges/{judge_id}/deactivate', headers=headers,
@@ -188,7 +188,7 @@ def test_super_admin_regenerates_selected_judges_atomically(app, client):
         'first_name': 'Ana', 'last_name': 'Soto', 'rut': '11.111.111-1',
     }).get_json()
 
-    original_password = first['credentials']['password']
+    original_link = first['credentials']['access_path']
     first_id = first['judge']['id']
     second_id = second['judge']['id']
     invalid_batch = client.post(
@@ -198,7 +198,7 @@ def test_super_admin_regenerates_selected_judges_atomically(app, client):
     )
     assert invalid_batch.status_code == 404
     first_user = db.session.get(User, uuid.UUID(first_id))
-    assert verify_password(first_user.password_hash, original_password)[0]
+    assert first_user.judge_access_token_hash == token_digest(original_link.split('#')[1])
 
     regenerated = client.post(
         '/api/v1/admin/judges/credentials/regenerate-batch',
@@ -208,8 +208,8 @@ def test_super_admin_regenerates_selected_judges_atomically(app, client):
     assert regenerated.status_code == 200
     items = regenerated.get_json()['items']
     assert [item['judge']['id'] for item in items] == [second_id, first_id]
-    assert all(item['credentials']['password'] for item in items)
-    assert not verify_password(first_user.password_hash, original_password)[0]
+    assert all(item['credentials']['access_path'] for item in items)
+    assert not first_user.judge_access_token_hash == token_digest(original_link.split('#')[1])
 
     duplicate = client.post(
         '/api/v1/admin/judges/credentials/regenerate-batch',

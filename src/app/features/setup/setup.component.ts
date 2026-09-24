@@ -1,11 +1,17 @@
+import { InitialImportQueueService } from '../../core/services/initial-import-queue.service';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
+    ChangeDetectorRef,
     Component,
-    OnInit
+    ElementRef,
+    OnInit,
+    QueryList,
+    ViewChildren
 } from '@angular/core';
 import {
     FormBuilder,
+    FormsModule,
     ReactiveFormsModule,
     Validators
 } from '@angular/forms';
@@ -27,6 +33,8 @@ import {
 } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
+import { JudgeLinkDeliveryComponent } from '../../shared/judge-link-delivery.component';
+import { CredentialDeliveryService } from '../../core/services/credential-delivery.service';
 
 import { ApiErrorBody } from '../../core/models/api-error.model';
 import {
@@ -46,6 +54,8 @@ type CutoffOption = number | 'MANUAL' | null;
     standalone: true,
     imports: [
         CommonModule,
+        JudgeLinkDeliveryComponent,
+        FormsModule,
         MatButtonModule,
         MatCardModule,
         MatFormFieldModule,
@@ -61,6 +71,9 @@ type CutoffOption = number | 'MANUAL' | null;
     styleUrls: ['./setup.component.scss']
 })
 export class SetupComponent implements OnInit {
+    @ViewChildren('initialDayFileInput')
+    private initialDayFileInputs!: QueryList<ElementRef<HTMLInputElement>>;
+
     readonly championshipForm = this.formBuilder.nonNullable.group({
         name: ['', [Validators.required, Validators.maxLength(180)]],
         kind: ['CLASIFICATORIO', Validators.required],
@@ -72,6 +85,13 @@ export class SetupComponent implements OnInit {
     championship: CloudChampionshipDetail | null = null;
     preview: ImportPreview | null = null;
     selectedFile: File | null = null;
+    competitionDate = '';
+    initialDayFiles: Array<{ date: string; file: File | null }> = [
+        { date: '', file: null }
+    ];
+    get creationQueue(): Array<{ date: string; file: File }> {
+        return this.initialImportQueue.days;
+    }
     loading = false;
     pageLoading = false;
     errorMessage = '';
@@ -85,8 +105,17 @@ export class SetupComponent implements OnInit {
         this.route.snapshot.paramMap.get('championshipId');
     private readonly routePreviewId =
         this.route.snapshot.queryParamMap.get('previewId');
+    private readonly addingDay =
+        this.route.snapshot.queryParamMap.get('dayUpload') === '1';
+    private readonly initialSetup =
+        this.route.snapshot.queryParamMap.get('initialSetup') === '1';
+    private readonly returnToChampionshipDetail =
+        this.route.snapshot.queryParamMap.get('returnToDetail') === '1';
 
     constructor(
+        private readonly initialImportQueue: InitialImportQueueService,
+        private readonly credentialDelivery: CredentialDeliveryService,
+        private readonly changeDetector: ChangeDetectorRef,
         private readonly formBuilder: FormBuilder,
         private readonly route: ActivatedRoute,
         private readonly router: Router,
@@ -127,6 +156,28 @@ export class SetupComponent implements OnInit {
             return;
         }
 
+        const providedDays = this.initialDayFiles.filter(
+            (day) => day.date || day.file
+        );
+        if (!providedDays.length) {
+            this.errorMessage = 'Agrega al menos un día con su fecha y planilla.';
+            return;
+        }
+        providedDays.sort((first, second) => first.date.localeCompare(second.date));
+        if (providedDays.some((day) => !day.date || !day.file)) {
+            this.errorMessage = 'Cada día inicial debe tener fecha y planilla.';
+            return;
+        }
+        if (new Set(providedDays.map((day) => day.date)).size !== providedDays.length) {
+            this.errorMessage = 'Las fechas de los días iniciales no pueden repetirse.';
+            return;
+        }
+
+        if (providedDays.some((day) => day.date < this.championshipForm.controls.start_date.value)) {
+            this.errorMessage = 'Ningún día puede ser anterior a la fecha del primer día.';
+            return;
+        }
+
         this.loading = true;
         this.errorMessage = '';
         const value = this.championshipForm.getRawValue();
@@ -138,16 +189,17 @@ export class SetupComponent implements OnInit {
             start_date: value.start_date
         }).subscribe({
             next: (championship) => {
+                this.championship = championship as CloudChampionshipDetail;
                 this.loading = false;
-                this.snackBar.open(
-                    'Borrador creado. Ahora carga el orden de paso.',
-                    'Cerrar',
-                    { duration: 4000 }
-                );
-                void this.router.navigate(
-                    ['/championships', championship.id, 'import'],
-                    { replaceUrl: true }
-                );
+                this.initialImportQueue.championshipId = championship.id;
+                this.initialImportQueue.days = providedDays.map((day) => ({
+                    date: day.date, file: day.file!
+                }));
+                if (this.creationQueue.length) {
+                    void this.uploadNextInitialDay(championship.id);
+                } else {
+                    void this.router.navigate(['/championships', championship.id]);
+                }
             },
             error: (error) => {
                 this.errorMessage = this.apiMessage(
@@ -157,6 +209,62 @@ export class SetupComponent implements OnInit {
                 this.loading = false;
             }
         });
+    }
+
+    addInitialDay(): void {
+        if (this.loading) return;
+        this.initialDayFiles = [...this.initialDayFiles, { date: '', file: null }];
+        // Render the input synchronously so the picker keeps the user's click activation.
+        this.changeDetector.detectChanges();
+        this.initialDayFileInputs.last.nativeElement.click();
+    }
+
+    selectInitialDayFile(index: number, event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0] ?? null;
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
+            this.errorMessage = 'Selecciona una planilla Excel con extensión .xlsx.';
+            input.value = '';
+            return;
+        }
+        if (file.size > 16 * 1024 * 1024) {
+            this.errorMessage = 'La planilla no puede superar los 16 MB.';
+            input.value = '';
+            return;
+        }
+        this.errorMessage = '';
+        this.initialDayFiles[index] = { ...this.initialDayFiles[index], file };
+    }
+
+    private async uploadNextInitialDay(championshipId: string): Promise<void> {
+        const next = this.creationQueue[0];
+        if (!next) return;
+        this.loading = true;
+        this.preview = null;
+        this.selectedFile = next.file;
+        this.competitionDate = next.date;
+        try {
+            const preview = await firstValueFrom(
+                this.championshipsApi.createImportPreview(championshipId, next.file, next.date)
+            );
+            this.competitionDate = next.date;
+            this.preview = preview;
+            this.initializeCutoffs(preview);
+            await this.router.navigate(['/championships', championshipId, 'import'], {
+                queryParams: {
+                    previewId: preview.id,
+                    dayUpload: '1',
+                    initialSetup: '1',
+                    returnToDetail: '1'
+                },
+                replaceUrl: true
+            });
+        } catch (error) {
+            this.errorMessage = this.apiMessage(error, 'No fue posible analizar la planilla. Puedes volver a analizarla.');
+        } finally {
+            this.loading = false;
+        }
     }
 
     selectFile(event: Event): void {
@@ -191,11 +299,20 @@ export class SetupComponent implements OnInit {
             return;
         }
 
+        if (!this.competitionDate) {
+            this.errorMessage = 'Selecciona la fecha del día de competencia.';
+            return;
+        }
+        if (this.competitionDate < this.championship.start_date) {
+            this.errorMessage = 'La fecha no puede ser anterior al primer día del campeonato.';
+            return;
+        }
         this.loading = true;
         this.errorMessage = '';
         this.championshipsApi.createImportPreview(
             this.championship.id,
-            this.selectedFile
+            this.selectedFile,
+            this.competitionDate
         ).subscribe({
             next: (preview) => {
                 this.preview = preview;
@@ -217,6 +334,12 @@ export class SetupComponent implements OnInit {
                 this.loading = false;
             }
         });
+    }
+
+    previewJudgeRoleLabel(judge: ImportPreview['preview']['judges'][number]): string {
+        const group = this.preview!.preview.judges.filter((item) =>
+            item.bench === judge.bench && item.session === judge.session && item.role === judge.role);
+        return `${judge.role}${group.indexOf(judge) + 1}`;
     }
 
     eligibleMarkers(sheet: ImportPreviewSheet): ImportMarker[] {
@@ -307,10 +430,11 @@ export class SetupComponent implements OnInit {
         }
 
         const confirmation = await Swal.fire({
-            title: 'Confirmar orden de paso',
+            title: 'Confirmar día de competencia',
             html:
-                `Se crearán <strong>${this.preview.preview.total_days} días</strong>, `
-                + `<strong>${this.preview.preview.total_categories} categorías</strong> `
+                `Se agregará <strong>${this.preview.preview.sheets[0].name}</strong> `
+                + `el <strong>${this.competitionDate || this.preview.decisions.competition_date}</strong>, `
+                + `con <strong>${this.preview.preview.total_categories} categorías</strong> `
                 + `y <strong>${this.preview.preview.total_gymnasts} participantes</strong>.`,
             icon: 'question',
             showCancelButton: true,
@@ -332,10 +456,25 @@ export class SetupComponent implements OnInit {
                 )
             );
             this.snackBar.open(
-                `Orden confirmado: ${result.imported.categories} categorías`,
+                `Día agregado: ${result.imported.categories} categorías`,
                 'Cerrar',
                 { duration: 4500 }
             );
+            if (result.imported.new_judge_credentials?.length) {
+                result.imported.new_judge_credentials.forEach((item) =>
+                    this.credentialDelivery.addImported(item.judge, item));
+            }
+            if (this.creationQueue.length) {
+                this.creationQueue.shift();
+                if (this.creationQueue.length) {
+                    await this.uploadNextInitialDay(this.championship.id);
+                    return;
+                }
+            }
+            if (this.returnToChampionshipDetail) {
+                await this.router.navigate(['/championships', this.championship.id]);
+                return;
+            }
             await this.router.navigate([
                 '/championships',
                 this.championship.id
@@ -351,12 +490,15 @@ export class SetupComponent implements OnInit {
     }
 
     private loadDraft(championshipId: string): void {
+        if (this.initialImportQueue.championshipId !== championshipId) {
+            this.initialImportQueue.days = [];
+        }
         this.pageLoading = true;
         this.championshipsApi.get(championshipId).subscribe({
             next: (championship) => {
                 if (
                     championship.status !== 'DRAFT'
-                    || championship.counts.days > 0
+                    || (championship.counts.days > 0 && !this.addingDay && !this.initialSetup)
                 ) {
                     void this.router.navigate([
                         '/championships',
@@ -365,6 +507,10 @@ export class SetupComponent implements OnInit {
                     return;
                 }
                 this.championship = championship;
+                if (this.routePreviewId && (this.addingDay || this.initialSetup)) {
+                    this.loadPreview(championship.id, this.routePreviewId);
+                    return;
+                }
                 if (this.routePreviewId) {
                     this.loadPreview(championship.id, this.routePreviewId);
                 } else {
@@ -404,6 +550,12 @@ export class SetupComponent implements OnInit {
         preview: ImportPreview,
         preserveDirty = false
     ): void {
+        if (!preserveDirty) {
+            this.dirtyCutoffSequences.clear();
+            this.cutoffOptions = {};
+            this.manualRows = {};
+        }
+        this.competitionDate = preview.decisions.competition_date || this.competitionDate;
         this.invalidCutoffSequences.clear();
         for (const sheet of preview.preview.sheets) {
             if (

@@ -51,6 +51,9 @@ export interface PublicResult {
     display_name: string;
     club_name: string;
     passing_order: number;
+    db_score: string | null;
+    da_score: string | null;
+    discount: string | null;
     total_score: string;
     display_position: number;
     is_published: boolean;

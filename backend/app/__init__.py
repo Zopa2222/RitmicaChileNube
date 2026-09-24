@@ -73,6 +73,13 @@ def create_app(config_name=None, config_overrides=None):
     app.cli.add_command(bootstrap_fixed_users)
     app.cli.add_command(purge_expired_championships_command)
 
+    @app.after_request
+    def protect_api_responses(response):
+        from flask import request
+        if request.path.startswith('/api/v1/'):
+            response.headers['Cache-Control'] = 'no-store'
+        return response
+
     @jwt.unauthorized_loader
     def missing_token(reason):
         return jsonify({

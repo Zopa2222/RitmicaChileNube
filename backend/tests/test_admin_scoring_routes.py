@@ -114,10 +114,10 @@ def create_user(account_type, username):
 
 
 def login(client, username):
-    response = client.post(
-        '/api/v1/auth/login',
-        json={'username': username, 'password': PASSWORD},
-    )
+    from conftest import login_judge_link
+    user = db.session.execute(select(User).where(User.username == username)).scalar_one()
+    response = login_judge_link(client, username) if user.account_type == AccountType.JUDGE else client.post(
+        '/api/v1/auth/admin/login', json={'username': username, 'password': PASSWORD})
     assert response.status_code == 200
     return {'X-CSRF-TOKEN': client.get_cookie('ritmica_csrf').value}
 
@@ -1078,3 +1078,40 @@ def test_full_publication_requires_admin_and_active_championship(
     assert paused.status_code == 409
     assert paused.get_json()['code'] == 'CHAMPIONSHIP_NOT_ACTIVE'
     assert client.get(public_url).status_code == 404
+
+
+def test_public_breakdown_is_snapshotted_until_republication(app, client):
+    context = create_scoring_context()
+    headers = login(client, context['admin'].username)
+    gymnast = context['gymnasts'][0]
+    base = f"/api/v1/championships/{context['championship'].id}"
+    publish_url = f"{base}/categories/{context['category'].id}/publish"
+    public_url = (
+        '/api/v1/public/championships/active/categories/'
+        f"{context['category'].id}/results"
+    )
+
+    def row():
+        return next(result for result in client.get(public_url).get_json()['results']
+                    if result['gymnast_id'] == str(gymnast.id))
+
+    assert {key: row()[key] for key in ('db_score', 'da_score', 'discount')} == {
+        'db_score': '0.00', 'da_score': '0.00', 'discount': '0.00',
+    }
+    assert client.post(publish_url, headers=headers).status_code == 201
+    original = row()
+    assert original['db_score'] == '3.10'
+    assert original['da_score'] == '5.20'
+    assert original['discount'] == '0.00'
+    assert client.put(f'{base}/gymnasts/{gymnast.id}/discount',
+                      json={'value': '1.25'}, headers=headers).status_code == 200
+    assert row() == original
+    assert client.post(publish_url, headers=headers).status_code == 201
+    assert row()['discount'] == '1.25'
+    assert row()['total_score'] == '24.75'
+
+    # Legacy snapshots have no breakdown, rather than invented zero scores.
+    for snapshot in db.session.scalars(select(PublishedResult)):
+        snapshot.db_score = snapshot.da_score = snapshot.discount = None
+    db.session.commit()
+    assert all(row()[key] is None for key in ('db_score', 'da_score', 'discount'))

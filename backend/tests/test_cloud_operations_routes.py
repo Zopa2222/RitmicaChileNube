@@ -1,5 +1,6 @@
 from datetime import date
 import uuid
+import pytest
 
 from sqlalchemy import select
 
@@ -203,7 +204,7 @@ def test_admin_creates_judge_only_during_assignment_and_windows_expand(
     payload = created.get_json()
     judge_id = payload['assignment']['judge']['id']
     assert payload['credentials']['username'] == 'MARIAPEREZ123456785'
-    assert payload['credentials']['password']
+    assert payload['credentials']['access_path']
     assert (
         payload['assignment']['effective_from_category']['id']
         == str(categories['A_AM_1'].id)
@@ -292,7 +293,7 @@ def test_super_admin_can_create_standalone_judge(app, client):
     )
     assert response.status_code == 201
     assert response.get_json()['judge']['rut'] == '123456785'
-    assert response.get_json()['credentials']['password']
+    assert response.get_json()['credentials']['access_path']
 
 
 def test_active_gymnast_is_independent_by_bench_and_advances_after_publication(
@@ -806,3 +807,34 @@ def test_direct_activation_can_switch_and_return(app, client):
     entry = db.session.get(ScoreEntry, original_entry_id)
     assert float(entry.value) == 7.25
     assert entry.activation_id == open_activation.id
+
+
+@pytest.mark.parametrize('role', ['DA', 'DB', 'A', 'E', 'L', 'P'])
+def test_each_area_allows_four_judges_but_rejects_fifth(app, client, role):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, day, _, _ = create_championship_context(admin)
+    headers = login(client, admin.username)
+    for index in range(5):
+        judge = create_user(AccountType.JUDGE, f'LIMIT_JUDGE_{index}', rut=f'1234567{index}5')
+        db.session.commit()
+        response = client.post(
+            f'/api/v1/championships/{championship.id}/judge-assignments',
+            json=assignment_payload(day, judge.id, role=role),
+            headers=headers,
+        )
+        assert response.status_code == (201 if index < 4 else 409)
+        if index == 4:
+            assert response.get_json()['code'] == 'JUDGE_ROLE_LIMIT'
+
+
+def test_day_upload_rejects_date_before_championship_start(app, client):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, _, _, _ = create_championship_context(admin)
+    headers = login(client, admin.username)
+    response = client.post(
+        f'/api/v1/championships/{championship.id}/import-previews',
+        data={'competition_date': '2026-07-31'},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert 'anterior' in response.get_json()['error']

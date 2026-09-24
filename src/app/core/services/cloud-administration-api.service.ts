@@ -26,11 +26,11 @@ export class CloudAdministrationApiService {
         first_name: string; last_name: string; rut: string;
     }): Observable<{
         judge: CloudJudge;
-        credentials: { username: string; password: string };
+        credentials: InitialCredentials;
     }> {
         return this.http.post<{
             judge: CloudJudge;
-            credentials: { username: string; password: string };
+            credentials: InitialCredentials;
         }>(`${this.apiUrl}/admin/judges`, request);
     }
 
@@ -63,12 +63,12 @@ export class CloudAdministrationApiService {
 
     regenerateCredentials(judgeId: string): Observable<{
         judge: CloudJudge;
-        credentials: { username: string; password: string };
+        credentials: InitialCredentials;
     }> {
         return this.http.post<{
             judge: CloudJudge;
-            credentials: { username: string; password: string };
-        }>(`${this.apiUrl}/admin/judges/${judgeId}/credentials/regenerate`, {});
+            credentials: InitialCredentials;
+        }>(`${this.apiUrl}/admin/judges/${judgeId}/access-link`, {});
     }
 
     regenerateCredentialsBatch(judgeIds: string[]): Observable<Array<{
@@ -77,7 +77,7 @@ export class CloudAdministrationApiService {
     }>> {
         return this.http.post<{
             items: Array<{ judge: CloudJudge; credentials: InitialCredentials }>;
-        }>(`${this.apiUrl}/admin/judges/credentials/regenerate-batch`, {
+        }>(`${this.apiUrl}/admin/judges/access-links`, {
             judge_ids: judgeIds
         }).pipe(map((response) => response.items));
     }

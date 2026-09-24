@@ -7,6 +7,7 @@ from app.models import (
     Championship,
     ChampionshipStatus,
     JudgeAccessWindow,
+    JudgeAssignment,
 )
 
 
@@ -25,6 +26,12 @@ def judge_has_championship_access(user_id, now=None):
         )
         .where(
             JudgeAccessWindow.judge_user_id == user_id,
+            select(JudgeAssignment.id).where(
+                JudgeAssignment.judge_user_id == user_id,
+                JudgeAssignment.championship_id == JudgeAccessWindow.championship_id,
+                JudgeAssignment.competition_day_id == JudgeAccessWindow.competition_day_id,
+                JudgeAssignment.superseded_at.is_(None),
+            ).exists(),
             JudgeAccessWindow.starts_at <= current_time,
             JudgeAccessWindow.ends_at > current_time,
             Championship.status.in_([

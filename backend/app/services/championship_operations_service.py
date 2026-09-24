@@ -150,26 +150,24 @@ def _validate_assignment_slot(
             status=409,
         )
 
-    if role in {JudgeRole.DA, JudgeRole.DB}:
-        role_count = select(func.count(JudgeAssignment.id)).where(
-            JudgeAssignment.championship_id == championship.id,
-            JudgeAssignment.competition_day_id == competition_day.id,
-            JudgeAssignment.bench == bench,
-            JudgeAssignment.session == session,
-            JudgeAssignment.role == role,
-            JudgeAssignment.superseded_at.is_(None),
+    role_count = select(func.count(JudgeAssignment.id)).where(
+        JudgeAssignment.championship_id == championship.id,
+        JudgeAssignment.competition_day_id == competition_day.id,
+        JudgeAssignment.bench == bench,
+        JudgeAssignment.session == session,
+        JudgeAssignment.role == role,
+        JudgeAssignment.superseded_at.is_(None),
+    )
+    if exclude_assignment_id is not None:
+        role_count = role_count.where(
+            JudgeAssignment.id != exclude_assignment_id
         )
-        if exclude_assignment_id is not None:
-            role_count = role_count.where(
-                JudgeAssignment.id != exclude_assignment_id
-            )
-        if db.session.execute(role_count).scalar_one() >= 4:
-            raise ChampionshipOperationError(
-                f'La banca y jornada ya tienen cuatro jueces {role.value}',
-                code='JUDGE_ROLE_LIMIT',
-                status=409,
-            )
-
+    if db.session.execute(role_count).scalar_one() >= 4:
+        raise ChampionshipOperationError(
+            f'La banca y jornada ya tienen cuatro jueces {role.value}',
+            code='JUDGE_ROLE_LIMIT',
+            status=409,
+        )
 
 def recalculate_judge_access_window(
     judge_id,

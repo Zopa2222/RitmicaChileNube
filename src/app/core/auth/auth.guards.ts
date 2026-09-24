@@ -16,7 +16,7 @@ export const authGuard: CanActivateFn = (_route, state) => {
 
     return authState.user
         ? true
-        : router.createUrlTree(['/ingresar'], {
+        : router.createUrlTree([state.url.startsWith('/cabina-juez') ? '/acceso-juez' : '/administracion/ingresar'], {
             queryParams: { returnUrl: state.url }
         });
 };
@@ -27,7 +27,7 @@ export const roleGuard: CanActivateFn = (route, state) => {
     const user = authState.user;
 
     if (!user) {
-        return router.createUrlTree(['/ingresar'], {
+        return router.createUrlTree([state.url.startsWith('/cabina-juez') ? '/acceso-juez' : '/administracion/ingresar'], {
             queryParams: { returnUrl: state.url }
         });
     }

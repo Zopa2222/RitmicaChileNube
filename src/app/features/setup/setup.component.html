@@ -1,4 +1,5 @@
 <main class="setup-page">
+    <app-judge-link-delivery></app-judge-link-delivery>
     <a mat-button routerLink="/championships" class="back-link">
         <mat-icon>arrow_back</mat-icon>
         Volver a campeonatos
@@ -86,16 +87,46 @@
                         </mat-select>
                     </mat-form-field>
                     <mat-form-field appearance="outline">
-                        <mat-label>Fecha inicial</mat-label>
+                        <mat-label>Fecha del primer día</mat-label>
                         <input
                             matInput
                             type="date"
                             formControlName="start_date">
                         <mat-hint>
-                            Cada hoja siguiente corresponde al día siguiente.
+                            Esta será la fecha predeterminada del campeonato.
                         </mat-hint>
                         <mat-error>Selecciona la fecha inicial</mat-error>
                     </mat-form-field>
+
+                    <section class="initial-days">
+                        <h3>Días de competencia y planillas <span class="required-label">Obligatorio</span></h3>
+                        <p class="initial-days-help">Agrega al menos un día. Cada día necesita una fecha y su planilla .xlsx.</p>
+                        <div class="initial-day-row" *ngFor="let day of initialDayFiles; let i = index">
+                            <label>Día {{ i + 1 }} · Fecha
+                                <input type="date" [min]="championshipForm.controls.start_date.value" [(ngModel)]="initialDayFiles[i].date" [ngModelOptions]="{standalone: true}">
+                            </label>
+                            <div class="initial-planilla">
+                                <span>Planilla del día {{ i + 1 }}</span>
+                                <div class="initial-planilla-actions">
+                                    <input
+                                        #initialDayFileInput
+                                        class="native-file-input"
+                                        type="file"
+                                        accept=".xlsx"
+                                        [disabled]="loading"
+                                        (change)="selectInitialDayFile(i, $event)">
+                                    <small>{{ day.file?.name || 'Ninguna planilla seleccionada' }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <button mat-stroked-button type="button" (click)="addInitialDay()" [disabled]="loading">
+                            <mat-icon>add</mat-icon> Agregar otro día
+                        </button>
+                        <small>Cada archivo se analizará y confirmará antes de continuar con el siguiente.</small>
+                        <a class="sample-workbook-link" href="/assets/PLANILLA_PRUEBA_DIA.xlsx" download="PLANILLA_PRUEBA_DIA.xlsx">
+                            <mat-icon>download</mat-icon> Descargar planilla de ejemplo
+                        </a>
+                    </section>
 
                     <div *ngIf="errorMessage" class="error-message" role="alert">
                         <mat-icon>error_outline</mat-icon>
@@ -109,7 +140,7 @@
                         [disabled]="loading">
                         <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
                         <mat-icon *ngIf="!loading">arrow_forward</mat-icon>
-                        Crear borrador y continuar
+                        Crear campeonato
                     </button>
                 </form>
             </mat-card-content>
@@ -146,13 +177,19 @@
                     {{ selectedFile?.name || 'Seleccionar orden de paso' }}
                 </strong>
                 <span>
-                    Archivo .xlsx de hasta 16 MB. Cada hoja representa un día.
+                    Archivo .xlsx de hasta 16 MB con una hoja de orden del día
+                    y otra hoja llamada Jueces.
                 </span>
                 <input
                     id="excel-file"
                     type="file"
                     accept=".xlsx"
                     (change)="selectFile($event)">
+            </label>
+
+            <label class="competition-date-field">
+                Fecha de este día
+                <input type="date" [min]="championship.start_date" [(ngModel)]="competitionDate">
             </label>
 
             <div *ngIf="errorMessage" class="error-message" role="alert">
@@ -176,10 +213,11 @@
     </section>
 
     <section *ngIf="preview && championship" class="preview-section">
+        <p *ngIf="creationQueue.length > 1">Quedan {{ creationQueue.length - 1 }} días por revisar. Al confirmar este día se abrirán los cortes del siguiente.</p>
         <div class="preview-summary">
             <mat-card>
-                <span>Días</span>
-                <strong>{{ preview.preview.total_days }}</strong>
+                <span>Día</span>
+                <strong>{{ preview.preview.sheets[0].name }}</strong>
             </mat-card>
             <mat-card>
                 <span>Categorías</span>
@@ -195,13 +233,27 @@
             </mat-card>
         </div>
 
+        <mat-card *ngIf="preview.preview.judges.length" class="judge-preview">
+            <h2>Jueces detectados</h2>
+            <p>Se asignarán a la banca y jornada indicadas en la hoja Jueces.</p>
+            <ul>
+                <li *ngFor="let judge of preview.preview.judges">
+                    <span class="judge-role-badge">{{ previewJudgeRoleLabel(judge) }}</span>
+                    <div><strong>{{ judge.full_name }}</strong><br>RUT {{ judge.rut }} · Banca {{ judge.bench }} · Jornada {{ judge.session }}</div>
+                </li>
+            </ul>
+        </mat-card>
+
         <div class="preview-toolbar">
             <div>
-                <h2>Revisión por hoja</h2>
+                <h2>Revisión del día</h2>
                 <p>
                     Cada corte confirmado separa AM de PM. Las categorías no
                     pueden dividirse entre ambos tramos.
                 </p>
+            </div>
+            <div class="day-date-summary">
+                Fecha de competencia: <strong>{{ preview.decisions.competition_date }}</strong>
             </div>
         </div>
 

@@ -42,10 +42,12 @@ export class CloudChampionshipApiService {
 
     createImportPreview(
         championshipId: string,
-        file: File
+        file: File,
+        competitionDate?: string
     ): Observable<ImportPreview> {
         const formData = new FormData();
         formData.append('file', file);
+        if (competitionDate) formData.append('competition_date', competitionDate);
         return this.http.post<ImportPreview>(
             `${this.apiUrl}/${championshipId}/import-previews`,
             formData
@@ -84,19 +86,29 @@ export class CloudChampionshipApiService {
             days: number;
             categories: number;
             gymnasts: number;
+            new_judge_credentials?: Array<{ judge: string; username: string; access_path: string }>;
         };
     }> {
         return this.http.post<{
             championship: CloudChampionship;
             imported: {
-                days: number;
-                categories: number;
-                gymnasts: number;
+            days: number;
+            categories: number;
+            gymnasts: number;
+            new_judge_credentials?: Array<{ judge: string; username: string; access_path: string }>;
             };
         }>(
             `${this.apiUrl}/${championshipId}/import-previews/${previewId}/confirm`,
             {}
         );
+    }
+
+    addCompetitionDay(
+        championshipId: string,
+        file: File,
+        competitionDate: string
+    ): Observable<ImportPreview> {
+        return this.createImportPreview(championshipId, file, competitionDate);
     }
 
     listCompetitionDays(championshipId: string): Observable<CompetitionDay[]> {

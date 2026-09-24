@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
+import { JudgeLinkDeliveryComponent } from '../../shared/judge-link-delivery.component';
 import * as XLSX from 'xlsx';
 
 import { AuditLogEntry, CloudJudge } from '../../core/models/cloud.model';
@@ -24,7 +25,7 @@ import {
 @Component({
     selector: 'app-cloud-administration',
     standalone: true,
-    imports: [CommonModule, FormsModule, ReactiveFormsModule, MatButtonModule, MatIconModule],
+    imports: [JudgeLinkDeliveryComponent, CommonModule, FormsModule, ReactiveFormsModule, MatButtonModule, MatIconModule],
     templateUrl: './cloud-administration.component.html',
     styleUrls: ['./cloud-administration.component.scss']
 })
@@ -129,11 +130,11 @@ export class CloudAdministrationComponent implements OnInit, OnDestroy {
 
     async regenerate(judge: CloudJudge): Promise<void> {
         const confirmation = await Swal.fire({
-            title: '¿Regenerar credenciales?',
-            text: `La contraseña actual de ${judge.first_name} dejará de funcionar.`,
+            title: '¿Generar un enlace de acceso?',
+            text: `El enlace anterior de ${judge.first_name} y sus sesiones dejarán de funcionar.`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Regenerar',
+            confirmButtonText: 'Generar enlace',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#d97706'
         });
@@ -142,18 +143,18 @@ export class CloudAdministrationComponent implements OnInit, OnDestroy {
             const response = await firstValueFrom(this.administrationApi.regenerateCredentials(judge.id));
             this.credentialDelivery.add(response.judge, response.credentials);
             await this.loadJudges();
-        } catch { this.message = 'No fue posible regenerar las credenciales.'; }
+        } catch { this.message = 'No fue posible generar el enlace.'; }
     }
 
     async regenerateSelected(): Promise<void> {
         const judgeIds = [...this.selectedJudgeIds];
         if (!judgeIds.length || this.regenerating) return;
         const confirmation = await Swal.fire({
-            title: '¿Regenerar credenciales seleccionadas?',
-            text: `Se reemplazarán ${judgeIds.length} contraseña${judgeIds.length === 1 ? '' : 's'} actual${judgeIds.length === 1 ? '' : 'es'}.`,
+            title: '¿Generar enlaces para los jueces seleccionados?',
+            text: `Se generarán ${judgeIds.length} enlaces. Los enlaces anteriores y sus sesiones dejarán de funcionar.`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Regenerar',
+            confirmButtonText: 'Generar enlace',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#d97706'
         });
@@ -164,7 +165,7 @@ export class CloudAdministrationComponent implements OnInit, OnDestroy {
             items.forEach((item) => this.credentialDelivery.add(item.judge, item.credentials));
             this.selectedJudgeIds = new Set();
             await this.loadJudges();
-        } catch { this.message = 'No fue posible regenerar las credenciales seleccionadas.'; }
+        } catch { this.message = 'No fue posible generar los enlaces seleccionados.'; }
         finally { this.regenerating = false; }
     }
 
@@ -197,19 +198,19 @@ export class CloudAdministrationComponent implements OnInit, OnDestroy {
             Apellido: entry.lastName,
             RUT: entry.rut,
             Usuario: entry.username,
-            'Contraseña': entry.password
+            'Enlace de acceso': entry.accessUrl
         }));
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'Credenciales');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'Enlaces de acceso');
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        XLSX.writeFile(workbook, `Credenciales_Jueces_${stamp}.xlsx`);
+        XLSX.writeFile(workbook, `Enlaces_Jueces_${stamp}.xlsx`);
     }
 
     async clearCredentials(): Promise<void> {
         if (this.credentialDelivery.entries.length) {
             const confirmation = await Swal.fire({
-                title: '¿Vaciar bandeja de credenciales?',
-                text: 'Las credenciales mostradas se eliminarán de esta bandeja y no se podrán recuperar.',
+                title: '¿Vaciar bandeja de enlaces?',
+                text: 'Los enlaces mostrados se eliminarán de esta bandeja y no se podrán recuperar.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Vaciar bandeja',

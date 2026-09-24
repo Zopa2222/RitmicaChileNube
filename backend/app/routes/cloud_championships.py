@@ -252,6 +252,42 @@ def get_championship(current_user, championship_id):
     return jsonify({'championship': response})
 
 
+def analyze_day_upload(contents, sequence=1):
+    analysis = analyze_excel(contents)
+    if not analysis.get('has_judges_sheet'):
+        raise ExcelImportError('Falta la hoja obligatoria Jueces')
+    if not analysis.get('judges'):
+        raise ExcelImportError('La hoja Jueces no contiene jueces con RUT y roles válidos')
+    if len(analysis['sheets']) != 1:
+        raise ExcelImportError('Cada archivo debe contener exactamente una hoja de orden del día')
+    analysis = single_day_analysis(analysis, sequence)
+    render_preview(analysis)
+    return analysis
+
+
+@bp.post('/validate-day-file')
+@account_types_required(*ADMIN_ACCOUNT_TYPES)
+def validate_day_file(current_user):
+    upload = request.files.get('file')
+    if upload is None or not upload.filename:
+        return validation_error('Debe adjuntar un archivo Excel')
+    safe_name = secure_filename(upload.filename)
+    if not safe_name.lower().endswith('.xlsx'):
+        return validation_error('El archivo debe tener extensión .xlsx')
+
+    contents = upload.read()
+    if not contents:
+        return validation_error('El archivo está vacío')
+    if len(contents) > current_app.config['MAX_CONTENT_LENGTH']:
+        return validation_error('El archivo supera el tamaño permitido')
+
+    try:
+        analyze_day_upload(contents)
+    except ExcelImportError as error:
+        return validation_error(str(error), code='INVALID_EXCEL')
+    return jsonify({'valid': True})
+
+
 @bp.post('/<championship_id>/import-previews')
 @account_types_required(*ADMIN_ACCOUNT_TYPES)
 def create_import_preview(current_user, championship_id):
@@ -319,18 +355,7 @@ def create_import_preview(current_user, championship_id):
         return validation_error('El archivo supera el tamaño permitido')
 
     try:
-        analysis = analyze_excel(contents)
-        if not analysis.get('has_judges_sheet'):
-            raise ExcelImportError('Falta la hoja obligatoria Jueces')
-        if not analysis.get('judges'):
-            raise ExcelImportError('La hoja Jueces no contiene jueces con RUT y roles válidos')
-        if len(analysis['sheets']) != 1:
-            raise ExcelImportError(
-                'Cada archivo debe contener exactamente una hoja de orden del día'
-            )
-        analysis = single_day_analysis(analysis, proposed_sequence)
-        # Ensure the automatically selected cut does not split categories.
-        render_preview(analysis)
+        analysis = analyze_day_upload(contents, proposed_sequence)
     except ExcelImportError as error:
         return validation_error(str(error), code='INVALID_EXCEL')
 

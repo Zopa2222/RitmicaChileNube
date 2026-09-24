@@ -7,7 +7,6 @@ import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 import { JudgeLinkDeliveryComponent } from '../../shared/judge-link-delivery.component';
-import * as XLSX from 'xlsx';
 
 import { AuditLogEntry, CloudJudge } from '../../core/models/cloud.model';
 import {
@@ -189,21 +188,6 @@ export class CloudAdministrationComponent implements OnInit, OnDestroy {
         if (this.visibleCredentialIds.has(entry.judgeId)) this.visibleCredentialIds.delete(entry.judgeId);
         else this.visibleCredentialIds.add(entry.judgeId);
         this.visibleCredentialIds = new Set(this.visibleCredentialIds);
-    }
-
-    exportCredentials(entries: CredentialDeliveryEntry[]): void {
-        if (!entries.length) return;
-        const rows = entries.map((entry) => ({
-            Nombre: entry.firstName,
-            Apellido: entry.lastName,
-            RUT: entry.rut,
-            Usuario: entry.username,
-            'Enlace de acceso': entry.accessUrl
-        }));
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'Enlaces de acceso');
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        XLSX.writeFile(workbook, `Enlaces_Jueces_${stamp}.xlsx`);
     }
 
     async clearCredentials(): Promise<void> {

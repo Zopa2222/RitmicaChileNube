@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+import * as XLSX from 'xlsx';
 
 import { AuthStateService } from '../auth/auth-state.service';
 import { CloudJudge, InitialCredentials } from '../models/cloud.model';
@@ -54,6 +55,21 @@ export class CredentialDeliveryService {
             username: credentials.username,
             accessUrl: new URL(credentials.access_path, window.location.origin).href
         }]);
+    }
+
+    exportCredentials(entries: CredentialDeliveryEntry[]): void {
+        if (!entries.length) return;
+        const rows = entries.map((entry) => ({
+            Nombre: entry.firstName,
+            Apellido: entry.lastName,
+            RUT: entry.rut,
+            Usuario: entry.username,
+            'Enlace de acceso': entry.accessUrl
+        }));
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'Enlaces de acceso');
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        XLSX.writeFile(workbook, `Enlaces_Jueces_${stamp}.xlsx`);
     }
 
     clear(): void {

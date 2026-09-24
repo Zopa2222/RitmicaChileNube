@@ -4,11 +4,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
     ChangeDetectorRef,
     Component,
+    DestroyRef,
     ElementRef,
     OnInit,
     QueryList,
     ViewChildren
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
     FormBuilder,
     FormsModule,
@@ -86,7 +88,7 @@ export class SetupComponent implements OnInit {
     preview: ImportPreview | null = null;
     selectedFile: File | null = null;
     competitionDate = '';
-    initialDayFiles: Array<{ date: string; file: File | null }> = [
+    initialDayFiles: Array<{ date: string; file: File | null; validating?: boolean; validated?: boolean; error?: string }> = [
         { date: '', file: null }
     ];
     get creationQueue(): Array<{ date: string; file: File }> {
@@ -120,8 +122,13 @@ export class SetupComponent implements OnInit {
         private readonly route: ActivatedRoute,
         private readonly router: Router,
         private readonly championshipsApi: CloudChampionshipApiService,
-        private readonly snackBar: MatSnackBar
-    ) { }
+        private readonly snackBar: MatSnackBar,
+        destroyRef: DestroyRef
+    ) {
+        this.championshipForm.controls.start_date.valueChanges
+            .pipe(takeUntilDestroyed(destroyRef))
+            .subscribe(() => this.updateInitialDayDates());
+    }
 
     ngOnInit(): void {
         if (this.routeChampionshipId) {
@@ -150,9 +157,74 @@ export class SetupComponent implements OnInit {
         return this.dirtyCutoffSequences.size > 0;
     }
 
+    initialDayDateError(index: number): string {
+        const date = this.initialDayFiles[index].date;
+        const startDate = this.championshipForm.controls.start_date.value;
+        if (!date) return 'Selecciona la fecha de este día.';
+        if (startDate && date < startDate) {
+            return 'La fecha no puede ser anterior a la fecha del primer día.';
+        }
+        if (this.initialDayFiles.some((day, otherIndex) => otherIndex !== index && day.date === date)) {
+            return 'Esta fecha ya está asignada a otro día.';
+        }
+        if (this.initialDayFiles.slice(0, index).some((day) => day.date && day.date >= date)) {
+            return 'La fecha debe ser posterior a la de los días anteriores.';
+        }
+        return '';
+    }
+
+    get initialDayDatesInvalid(): boolean {
+        return !this.initialDayFiles.length
+            || this.initialDayFiles.some((_, index) => Boolean(this.initialDayDateError(index)));
+    }
+
+    get initialFilesInvalid(): boolean {
+        return this.initialDayFiles.some(day => !day.file || !day.validated || day.validating);
+    }
+
+    trackInitialDay(index: number): number {
+        return index;
+    }
+
+    enforceInitialDayMinimum(index: number, event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const startDate = this.championshipForm.controls.start_date.value;
+        if (input.value && startDate && input.value < startDate) {
+            input.value = startDate;
+            this.initialDayFiles[index].date = startDate;
+        }
+    }
+
+    private initialDateForDay(index: number): string {
+        const startDate = this.championshipForm.controls.start_date.value;
+        if (!startDate) return '';
+        // Use calendar days in UTC so month/year boundaries and DST are handled.
+        const date = new Date(`${startDate}T00:00:00Z`);
+        if (Number.isNaN(date.getTime())) return '';
+        date.setUTCDate(date.getUTCDate() + index);
+        return date.toISOString().slice(0, 10);
+    }
+
+    private updateInitialDayDates(): void {
+        this.initialDayFiles = this.initialDayFiles.map((day, index) => ({
+            ...day,
+            date: this.initialDateForDay(index)
+        }));
+    }
+
     createChampionship(): void {
         if (this.championshipForm.invalid || this.loading) {
             this.championshipForm.markAllAsTouched();
+            return;
+        }
+
+        if (this.initialDayDatesInvalid) {
+            this.errorMessage = 'Corrige las fechas de los días de competencia antes de continuar.';
+            return;
+        }
+
+        if (this.initialFilesInvalid) {
+            this.errorMessage = 'Espera el análisis y corrige las planillas indicadas antes de continuar.';
             return;
         }
 
@@ -163,7 +235,6 @@ export class SetupComponent implements OnInit {
             this.errorMessage = 'Agrega al menos un día con su fecha y planilla.';
             return;
         }
-        providedDays.sort((first, second) => first.date.localeCompare(second.date));
         if (providedDays.some((day) => !day.date || !day.file)) {
             this.errorMessage = 'Cada día inicial debe tener fecha y planilla.';
             return;
@@ -213,7 +284,10 @@ export class SetupComponent implements OnInit {
 
     addInitialDay(): void {
         if (this.loading) return;
-        this.initialDayFiles = [...this.initialDayFiles, { date: '', file: null }];
+        this.initialDayFiles = [
+            ...this.initialDayFiles,
+            { date: this.initialDateForDay(this.initialDayFiles.length), file: null }
+        ];
         // Render the input synchronously so the picker keeps the user's click activation.
         this.changeDetector.detectChanges();
         this.initialDayFileInputs.last.nativeElement.click();
@@ -224,23 +298,36 @@ export class SetupComponent implements OnInit {
         const file = input.files?.[0] ?? null;
         if (!file) return;
         if (!file.name.toLowerCase().endsWith('.xlsx')) {
-            this.errorMessage = 'Selecciona una planilla Excel con extensión .xlsx.';
+            this.initialDayFiles[index] = { ...this.initialDayFiles[index], file: null, validated: false, validating: false, error: 'Selecciona una planilla Excel con extensión .xlsx.' };
             input.value = '';
             return;
         }
         if (file.size > 16 * 1024 * 1024) {
-            this.errorMessage = 'La planilla no puede superar los 16 MB.';
+            this.initialDayFiles[index] = { ...this.initialDayFiles[index], file: null, validated: false, validating: false, error: 'La planilla no puede superar los 16 MB.' };
             input.value = '';
             return;
         }
         this.errorMessage = '';
-        this.initialDayFiles[index] = { ...this.initialDayFiles[index], file };
+        this.initialDayFiles[index] = { ...this.initialDayFiles[index], file, validating: true, validated: false, error: '' };
+        input.value = '';
+        this.championshipsApi.validateDayFile(file).subscribe({
+            next: () => {
+                if (this.initialDayFiles[index].file !== file) return;
+                this.initialDayFiles[index] = { ...this.initialDayFiles[index], validating: false, validated: true };
+            },
+            error: (error) => {
+                if (this.initialDayFiles[index].file !== file) return;
+                this.initialDayFiles[index] = { ...this.initialDayFiles[index], validating: false, validated: false,
+                    error: this.apiMessage(error, 'No se pudo analizar la planilla. Selecciónala nuevamente para reintentar.') };
+            }
+        });
     }
 
     private async uploadNextInitialDay(championshipId: string): Promise<void> {
         const next = this.creationQueue[0];
         if (!next) return;
         this.loading = true;
+        this.errorMessage = '';
         this.preview = null;
         this.selectedFile = next.file;
         this.competitionDate = next.date;
@@ -265,6 +352,22 @@ export class SetupComponent implements OnInit {
         } finally {
             this.loading = false;
         }
+    }
+
+    retryInitialDay(): void {
+        if (!this.championship || this.loading || !this.creationQueue.length) return;
+        void this.uploadNextInitialDay(this.championship.id);
+    }
+
+    replaceQueuedDayFile(event: Event): void {
+        if (this.loading || !this.creationQueue.length) return;
+        const input = event.target as HTMLInputElement;
+        if (!input.files?.length) return;
+        this.selectFile(event);
+        if (!this.selectedFile || this.errorMessage) return;
+        this.creationQueue[0].file = this.selectedFile;
+        input.value = '';
+        this.retryInitialDay();
     }
 
     selectFile(event: Event): void {
@@ -515,6 +618,7 @@ export class SetupComponent implements OnInit {
                     this.loadPreview(championship.id, this.routePreviewId);
                 } else {
                     this.pageLoading = false;
+                    this.retryInitialDay();
                 }
             },
             error: (error) => {

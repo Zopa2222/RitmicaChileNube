@@ -47,7 +47,6 @@
         <app-judge-link-delivery></app-judge-link-delivery>
         <div *ngIf="credentialEntries$ | async as entries" class="batch-actions">
             <ng-container *ngIf="entries.length">
-                <button mat-stroked-button type="button" (click)="exportCredentials(entries)">Exportar enlaces a Excel</button>
                 <button mat-button type="button" (click)="clearCredentials()">Limpiar bandeja</button>
             </ng-container>
         </div>

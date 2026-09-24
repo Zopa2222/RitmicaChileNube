@@ -160,6 +160,17 @@
     font-weight: 700;
 }
 
+.initial-days .date-error {
+    color: #b91c1c;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.initial-days input.invalid-date {
+    border-color: #b91c1c;
+    outline-color: #b91c1c;
+}
+
 .initial-planilla-actions {
     display: grid;
     min-height: 40px;
@@ -167,37 +178,24 @@
     gap: 0.5rem;
 }
 
-.initial-days .native-file-input {
-    display: block;
+.planilla-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     width: 100%;
-    max-width: 100%;
     min-height: 40px;
-    padding: 0.25rem;
-    color: #334155;
+    padding: 0.4rem 0.55rem;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
     background: #fff;
-}
-
-.initial-days .native-file-input::file-selector-button {
-    min-height: 30px;
-    margin-right: 0.5rem;
-    padding: 0.3rem 0.7rem;
-    color: #3730a3;
-    border: 1px solid #a5b4fc;
-    border-radius: 5px;
-    background: #eef2ff;
+    color: #334155;
+    text-align: left;
     cursor: pointer;
 }
 
-.initial-days .native-file-input::file-selector-button:hover {
-    background: #e0e7ff;
-}
-
-.initial-planilla-actions small {
+.planilla-picker span {
+    min-width: 0;
     overflow-wrap: anywhere;
-    color: #64748b;
-    font-weight: 400;
 }
 
 .sample-workbook-link {

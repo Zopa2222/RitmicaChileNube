@@ -23,7 +23,7 @@
         </div>
         <div [class.active]="championship && !preview" [class.complete]="preview">
             <span>2</span>
-            <strong>Cargar Excel</strong>
+            <strong>{{ !championship || creationQueue.length ? 'Analizar planillas' : 'Cargar Excel' }}</strong>
         </div>
         <div [class.active]="preview">
             <span>3</span>
@@ -93,29 +93,51 @@
                             type="date"
                             formControlName="start_date">
                         <mat-hint>
-                            Esta será la fecha predeterminada del campeonato.
+                            Los días de competencia se asignan automáticamente desde esta fecha.
                         </mat-hint>
                         <mat-error>Selecciona la fecha inicial</mat-error>
                     </mat-form-field>
 
                     <section class="initial-days">
                         <h3>Días de competencia y planillas <span class="required-label">Obligatorio</span></h3>
-                        <p class="initial-days-help">Agrega al menos un día. Cada día necesita una fecha y su planilla .xlsx.</p>
-                        <div class="initial-day-row" *ngFor="let day of initialDayFiles; let i = index">
+                        <p class="initial-days-help">Las fechas son consecutivas desde el inicio del campeonato. Agrega una planilla .xlsx para cada día.</p>
+                        <div class="initial-day-row" *ngFor="let day of initialDayFiles; let i = index; trackBy: trackInitialDay">
                             <label>Día {{ i + 1 }} · Fecha
-                                <input type="date" [min]="championshipForm.controls.start_date.value" [(ngModel)]="initialDayFiles[i].date" [ngModelOptions]="{standalone: true}">
+                                <input type="date"
+                                    #dayDate="ngModel"
+                                    required
+                                    [disabled]="!championshipForm.controls.start_date.value || loading"
+                                    [min]="championshipForm.controls.start_date.value"
+                                    [(ngModel)]="initialDayFiles[i].date"
+                                    (change)="enforceInitialDayMinimum(i, $event)"
+                                    [ngModelOptions]="{standalone: true}"
+                                    [class.invalid-date]="(day.date || dayDate.touched) && initialDayDateError(i)"
+                                    [attr.aria-invalid]="!!initialDayDateError(i)"
+                                    [attr.aria-describedby]="'day-date-error-' + i">
+                                <span class="date-error" [id]="'day-date-error-' + i" aria-live="polite">
+                                    {{ day.date || dayDate.touched ? initialDayDateError(i) : '' }}
+                                </span>
                             </label>
                             <div class="initial-planilla">
                                 <span>Planilla del día {{ i + 1 }}</span>
                                 <div class="initial-planilla-actions">
                                     <input
                                         #initialDayFileInput
-                                        class="native-file-input"
+                                        hidden
                                         type="file"
                                         accept=".xlsx"
                                         [disabled]="loading"
                                         (change)="selectInitialDayFile(i, $event)">
-                                    <small>{{ day.file?.name || 'Ninguna planilla seleccionada' }}</small>
+                                    <button class="planilla-picker" type="button"
+                                        [disabled]="loading"
+                                        [attr.aria-label]="(day.file ? 'Cambiar planilla del día ' : 'Seleccionar planilla del día ') + (i + 1)"
+                                        (click)="initialDayFileInput.click()">
+                                        <mat-icon>attach_file</mat-icon>
+                                        <span aria-live="polite">{{ day.file?.name || 'Seleccionar planilla .xlsx' }}</span>
+                                    </button>
+                                    <small *ngIf="day.validating" role="status">Analizando planilla…</small>
+                                    <small *ngIf="day.validated" role="status">Planilla validada</small>
+                                    <span *ngIf="day.error" class="date-error" role="alert">{{ day.error }}</span>
                                 </div>
                             </div>
                         </div>
@@ -137,7 +159,7 @@
                         mat-flat-button
                         color="primary"
                         type="submit"
-                        [disabled]="loading">
+                        [disabled]="loading || initialDayDatesInvalid || initialFilesInvalid">
                         <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
                         <mat-icon *ngIf="!loading">arrow_forward</mat-icon>
                         Crear campeonato
@@ -159,7 +181,7 @@
     </section>
 
     <section
-        *ngIf="!pageLoading && championship && !preview"
+        *ngIf="!pageLoading && championship && !preview && !creationQueue.length"
         class="upload-section">
         <mat-card>
             <div class="draft-summary">
@@ -209,6 +231,31 @@
                     Analizar archivo
                 </button>
             </div>
+        </mat-card>
+    </section>
+
+    <section *ngIf="!pageLoading && championship && !preview && creationQueue.length" class="upload-section">
+        <mat-card>
+            <div class="draft-summary">
+                <span>{{ loading ? 'Analizando planilla' : 'Revisión de planilla pendiente' }}</span>
+                <h2>{{ championship.name }}</h2>
+                <p>Fecha de competencia: {{ creationQueue[0].date | date:'dd/MM/yyyy':'UTC' }}</p>
+                <strong>{{ creationQueue[0].file.name }}</strong>
+                <p>Las planillas ya están seleccionadas. Cada día se analiza automáticamente antes de revisar y confirmar sus cortes.</p>
+            </div>
+            <mat-spinner *ngIf="loading" diameter="32"></mat-spinner>
+            <ng-container *ngIf="!loading && errorMessage">
+                <div class="error-message" role="alert">
+                    <mat-icon>error_outline</mat-icon>
+                    {{ errorMessage }}
+                </div>
+                <p>Revisa el error de esta planilla. Puedes reemplazarla por una versión corregida; las demás planillas se conservan.</p>
+                <input #correctedDayFile hidden type="file" accept=".xlsx" (change)="replaceQueuedDayFile($event)">
+                <div class="upload-actions">
+                    <button mat-stroked-button type="button" (click)="correctedDayFile.click()">Reemplazar planilla</button>
+                    <button mat-flat-button color="primary" type="button" (click)="retryInitialDay()">Reintentar análisis</button>
+                </div>
+            </ng-container>
         </mat-card>
     </section>
 

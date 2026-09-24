@@ -40,6 +40,12 @@ export class CloudChampionshipApiService {
             .pipe(map((response) => response.championship));
     }
 
+    validateDayFile(file: File): Observable<{ valid: boolean }> {
+        const data = new FormData();
+        data.append('file', file);
+        return this.http.post<{ valid: boolean }>(`${this.apiUrl}/validate-day-file`, data);
+    }
+
     createImportPreview(
         championshipId: string,
         file: File,

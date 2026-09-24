@@ -205,3 +205,38 @@ def test_zone_and_final_validation(app, client):
     response = client.post('/api/v1/championships', json=payload, headers=headers)
     assert response.status_code == 201
     assert response.get_json()['championship']['qualifier_number'] is None
+
+
+def test_validate_day_file_before_creating_championship(app, client):
+    from app.models import Championship, FileObject, ImportPreview
+
+    create_admin()
+    headers = login_headers(client)
+    response = client.post('/api/v1/championships/validate-day-file',
+                           headers=headers, data={'file': (small_excel(), 'dia.xlsx')})
+    assert response.status_code == 200
+    assert response.json == {'valid': True}
+    for model in (Championship, FileObject, ImportPreview):
+        assert db.session.execute(select(model)).scalars().all() == []
+
+
+def test_validate_day_file_reports_category_conflict(app, client):
+    create_admin()
+    headers = login_headers(client)
+    workbook = openpyxl.load_workbook(small_excel())
+    workbook['SABADO']['H2'] = 'MINI A'
+    workbook['Jueces']['F1'] = 'BANCA B'
+    output = BytesIO()
+    workbook.save(output)
+    workbook.close()
+    output.seek(0)
+    response = client.post('/api/v1/championships/validate-day-file',
+                           headers=headers, data={'file': (output, 'dia.xlsx')})
+    assert response.status_code == 400
+    assert 'MINI A' in response.json['error']
+
+
+def test_validate_day_file_requires_login(client):
+    response = client.post('/api/v1/championships/validate-day-file',
+                           data={'file': (small_excel(), 'dia.xlsx')})
+    assert response.status_code == 401

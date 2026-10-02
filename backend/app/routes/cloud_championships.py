@@ -104,10 +104,12 @@ def championship_response(championship):
 
 
 def preview_response(preview, include_gymnasts=False):
+    source_file = db.session.get(FileObject, preview.source_file_id)
     return {
         'id': str(preview.id),
         'championship_id': str(preview.championship_draft_id),
         'expires_at': preview.expires_at.isoformat(),
+        'source_file_name': source_file.original_name if source_file else None,
         'decisions': preview.decisions,
         'preview': render_preview(
             preview.detected_data,
@@ -430,6 +432,35 @@ def create_import_preview(current_user, championship_id):
         raise
 
     return jsonify(preview_response(preview)), 201
+
+
+@bp.get('/<championship_id>/import-previews')
+@account_types_required(*ADMIN_ACCOUNT_TYPES)
+def list_import_previews(current_user, championship_id):
+    championship = get_championship_or_404(championship_id)
+    if championship is None:
+        return validation_error(
+            'Campeonato no encontrado',
+            code='CHAMPIONSHIP_NOT_FOUND',
+            status=404,
+        )
+
+    previews = db.session.execute(
+        select(ImportPreview)
+        .where(
+            ImportPreview.championship_draft_id == championship.id,
+            ImportPreview.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(ImportPreview.created_at)
+    ).scalars().all()
+    pending = [
+        preview
+        for preview in previews
+        if not preview.decisions.get('import_confirmed_at')
+    ]
+    return jsonify({
+        'previews': [preview_response(preview) for preview in pending],
+    })
 
 
 @bp.get('/<championship_id>/import-previews/<preview_id>')

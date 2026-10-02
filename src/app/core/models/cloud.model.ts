@@ -130,6 +130,7 @@ export interface ImportPreview {
     id: string;
     championship_id: string;
     expires_at: string;
+    source_file_name?: string | null;
     decisions: {
         competition_date?: string;
         sheets: Record<

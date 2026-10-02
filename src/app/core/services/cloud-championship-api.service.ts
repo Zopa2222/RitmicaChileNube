@@ -69,6 +69,16 @@ export class CloudChampionshipApiService {
         );
     }
 
+    listImportPreviews(
+        championshipId: string
+    ): Observable<ImportPreview[]> {
+        return this.http
+            .get<{ previews: ImportPreview[] }>(
+                `${this.apiUrl}/${championshipId}/import-previews`
+            )
+            .pipe(map((response) => response.previews));
+    }
+
     updateImportPreview(
         championshipId: string,
         previewId: string,

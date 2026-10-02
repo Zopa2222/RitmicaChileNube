@@ -240,7 +240,7 @@
                 <span>{{ loading ? 'Analizando planilla' : 'Revisión de planilla pendiente' }}</span>
                 <h2>{{ championship.name }}</h2>
                 <p>Fecha de competencia: {{ creationQueue[0].date | date:'dd/MM/yyyy':'UTC' }}</p>
-                <strong>{{ creationQueue[0].file.name }}</strong>
+                <strong>{{ creationQueue[0].file?.name || creationQueue[0].fileName }}</strong>
                 <p>Las planillas ya están seleccionadas. Cada día se analiza automáticamente antes de revisar y confirmar sus cortes.</p>
             </div>
             <mat-spinner *ngIf="loading" diameter="32"></mat-spinner>
@@ -260,7 +260,44 @@
     </section>
 
     <section *ngIf="preview && championship" class="preview-section">
-        <p *ngIf="creationQueue.length > 1">Quedan {{ creationQueue.length - 1 }} días por revisar. Al confirmar este día se abrirán los cortes del siguiente.</p>
+        <section
+            *ngIf="hasInitialReviewQueue"
+            class="initial-review-queue"
+            aria-labelledby="initial-review-queue-title">
+            <div class="initial-review-queue-heading">
+                <div>
+                    <span class="eyebrow">Importación inicial</span>
+                    <h2 id="initial-review-queue-title">
+                        Día {{ initialReviewCurrent }} de {{ initialReviewTotal }} en revisión
+                    </h2>
+                    <p>
+                        Confirma este día para abrir la revisión del siguiente. Los archivos ya cargados se conservan en este orden.
+                    </p>
+                </div>
+                <span class="initial-review-count" aria-live="polite">
+                    {{ initialReviewRemaining }} {{ initialReviewRemaining === 1 ? 'día pendiente' : 'días pendientes' }}
+                </span>
+            </div>
+
+            <ol class="initial-review-list">
+                <li
+                    *ngFor="let day of creationQueue; let i = index; trackBy: trackInitialReview"
+                    [class.current]="i === 0"
+                    [class.locked]="i > 0">
+                    <span class="initial-review-step">{{ initialReviewCurrent + i }}</span>
+                    <div class="initial-review-file">
+                        <strong>Día {{ initialReviewCurrent + i }}</strong>
+                        <span>{{ day.date | date:'dd/MM/yyyy':'UTC' }}</span>
+                        <small>{{ day.file?.name || day.fileName }}</small>
+                    </div>
+                    <span class="initial-review-status">
+                        <mat-icon aria-hidden="true">{{ i === 0 ? 'rate_review' : 'lock' }}</mat-icon>
+                        {{ i === 0 ? 'En revisión' : 'Se abrirá después' }}
+                    </span>
+                </li>
+            </ol>
+        </section>
+
         <div class="preview-summary">
             <mat-card>
                 <span>Día</span>
@@ -281,22 +318,57 @@
         </div>
 
         <mat-card *ngIf="preview.preview.judges.length" class="judge-preview">
-            <h2>Jueces detectados</h2>
+            <h2 id="detected-judges-title">Jueces detectados</h2>
             <p>Se asignarán a la banca y jornada indicadas en la hoja Jueces.</p>
-            <ul>
-                <li *ngFor="let judge of preview.preview.judges">
-                    <span class="judge-role-badge">{{ previewJudgeRoleLabel(judge) }}</span>
-                    <div><strong>{{ judge.full_name }}</strong><br>RUT {{ judge.rut }} · Banca {{ judge.bench }} · Jornada {{ judge.session }}</div>
-                </li>
-            </ul>
+            <div class="judge-session-groups">
+                <section
+                    *ngFor="let sessionGroup of groupedJudges; trackBy: trackJudgeSession"
+                    class="judge-session-group"
+                    [attr.aria-labelledby]="'detected-judges-' + sessionGroup.session">
+                    <header class="judge-session-heading">
+                        <div>
+                            <span class="judge-group-eyebrow">Jornada</span>
+                            <h3 [id]="'detected-judges-' + sessionGroup.session">
+                                {{ sessionGroup.session }}
+                            </h3>
+                        </div>
+                        <span class="judge-group-count">
+                            {{ sessionGroup.total }} {{ sessionGroup.total === 1 ? 'juez' : 'jueces' }}
+                        </span>
+                    </header>
+
+                    <div class="judge-bench-groups">
+                        <section
+                            *ngFor="let benchGroup of sessionGroup.benches; trackBy: trackJudgeBench"
+                            class="judge-bench-group"
+                            [attr.aria-labelledby]="'detected-judges-' + sessionGroup.session + '-bench-' + benchGroup.bench">
+                            <header class="judge-bench-heading">
+                                <h4 [id]="'detected-judges-' + sessionGroup.session + '-bench-' + benchGroup.bench">
+                                    Banca {{ benchGroup.bench }}
+                                </h4>
+                                <span>{{ benchGroup.judges.length }}</span>
+                            </header>
+                            <ul>
+                                <li *ngFor="let judge of benchGroup.judges; trackBy: trackJudge">
+                                    <span class="judge-role-badge">{{ previewJudgeRoleLabel(judge) }}</span>
+                                    <div class="judge-details">
+                                        <strong>{{ judge.full_name }}</strong>
+                                        <span>RUT {{ judge.rut }}</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </section>
+                    </div>
+                </section>
+            </div>
         </mat-card>
 
         <div class="preview-toolbar">
             <div>
                 <h2>Revisión del día</h2>
                 <p>
-                    Cada corte confirmado separa AM de PM. Las categorías no
-                    pueden dividirse entre ambos tramos.
+                    Revisa los cortes AM/PM. Al confirmar el día se guardarán
+                    todos juntos y las categorías no pueden dividirse entre tramos.
                 </p>
             </div>
             <div class="day-date-summary">
@@ -433,20 +505,6 @@
                 </div>
             </details>
 
-            <div class="sheet-card-actions">
-                <button
-                    mat-flat-button
-                    color="primary"
-                    type="button"
-                    (click)="confirmCutoffs(sheet)"
-                    [disabled]="savingCutoffs || (sheet.cutoff_confirmed && !isCutoffDirty(sheet))">
-                    <mat-spinner
-                        *ngIf="savingCutoffSequence === sheet.sequence"
-                        diameter="20"></mat-spinner>
-                    <mat-icon *ngIf="savingCutoffSequence !== sheet.sequence">done_all</mat-icon>
-                    Confirmar cortes AM/PM
-                </button>
-            </div>
         </article>
 
         <div *ngIf="errorMessage" class="error-message" role="alert">
@@ -457,23 +515,23 @@
         <footer class="confirmation-bar">
             <div>
                 <strong>
-                    {{ allCutoffsConfirmed
-                        ? (cutoffsDirty ? 'Hay cambios pendientes en los cortes' : 'Todos los cortes están confirmados')
-                        : 'Aún existen hojas pendientes' }}
+                    {{ confirmingDay || loading
+                        ? 'Confirmando el día…'
+                        : 'Revisa los cortes y confirma el día' }}
                 </strong>
                 <span>
-                    La importación sigue siendo reversible hasta confirmar.
+                    Se guardarán los cortes AM/PM y el orden de paso en una sola acción.
                 </span>
             </div>
             <button
                 mat-flat-button
                 color="primary"
                 type="button"
-                (click)="confirmImport()"
-                [disabled]="!canConfirmImport || loading || savingCutoffs">
-                <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
-                <mat-icon *ngIf="!loading">task_alt</mat-icon>
-                Confirmar orden de paso
+                (click)="confirmDay()"
+                [disabled]="!canConfirmDay">
+                <mat-spinner *ngIf="loading || confirmingDay" diameter="22"></mat-spinner>
+                <mat-icon *ngIf="!loading && !confirmingDay">task_alt</mat-icon>
+                Confirmar Día
             </button>
         </footer>
     </section>

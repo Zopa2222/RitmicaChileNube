@@ -135,8 +135,6 @@ def _validate_assignment_slot(
         JudgeAssignment.championship_id == championship.id,
         JudgeAssignment.judge_user_id == judge.id,
         JudgeAssignment.competition_day_id == competition_day.id,
-        JudgeAssignment.bench == bench,
-        JudgeAssignment.session == session,
         JudgeAssignment.superseded_at.is_(None),
     )
     if exclude_assignment_id is not None:
@@ -145,8 +143,9 @@ def _validate_assignment_slot(
         )
     if db.session.execute(judge_conflict.limit(1)).scalar_one_or_none():
         raise ChampionshipOperationError(
-            'El juez ya tiene un rol vigente en esa banca y jornada',
-            code='JUDGE_SCOPE_CONFLICT',
+            'El juez ya está asignado en otra banca, jornada o rol de este día. '
+            'Elige un juez disponible o elimina la asignación actual.',
+            code='JUDGE_DAY_CONFLICT',
             status=409,
         )
 

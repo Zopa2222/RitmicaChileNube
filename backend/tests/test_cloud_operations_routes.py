@@ -158,7 +158,7 @@ def test_championship_lifecycle_enforces_single_active(app, client):
     assert db.session.get(Championship, second.id).closed_at is not None
 
 
-def test_admin_creates_judge_only_during_assignment_and_windows_expand(
+def test_admin_creates_judge_only_during_assignment_and_rejects_duplicate_day_assignment(
     app,
     client,
 ):
@@ -235,18 +235,8 @@ def test_admin_creates_judge_only_during_assignment_and_windows_expand(
         json=assignment_payload(day, judge_id, session='PM', role='E'),
         headers=headers,
     )
-    assert second_assignment.status_code == 201
-    assert second_assignment.get_json()['credentials'] is None
-    second_assignment_id = uuid.UUID(
-        second_assignment.get_json()['assignment']['id']
-    )
-    assert len(
-        db.session.execute(
-            select(ScoreEntry).where(
-                ScoreEntry.judge_assignment_id == second_assignment_id
-            )
-        ).scalars().all()
-    ) == 1
+    assert second_assignment.status_code == 409
+    assert second_assignment.get_json()['code'] == 'JUDGE_DAY_CONFLICT'
 
     line_assignment = client.post(
         f'/api/v1/championships/{championship.id}/judge-assignments',
@@ -259,18 +249,11 @@ def test_admin_creates_judge_only_during_assignment_and_windows_expand(
         },
         headers=headers,
     )
-    assert line_assignment.status_code == 201
-    line_assignment_id = uuid.UUID(
-        line_assignment.get_json()['assignment']['id']
-    )
-    assert db.session.execute(
-        select(ScoreEntry).where(
-            ScoreEntry.judge_assignment_id == line_assignment_id
-        )
-    ).scalar_one_or_none() is None
+    assert line_assignment.status_code == 409
+    assert line_assignment.get_json()['code'] == 'JUDGE_DAY_CONFLICT'
 
     db.session.refresh(window)
-    assert (window.ends_at - window.starts_at).total_seconds() == 16 * 3600
+    assert (window.ends_at - window.starts_at).total_seconds() == 8 * 3600
 
     search = client.get('/api/v1/judges?query=12345678')
     assert search.status_code == 200
@@ -419,6 +402,11 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         'JUEZ2',
         rut='222222222',
     )
+    occupied_judge = create_user(
+        AccountType.JUDGE,
+        'JUEZ3',
+        rut='333333333',
+    )
     championship, day, categories, gymnasts = create_championship_context(
         admin
     )
@@ -433,6 +421,15 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         JudgeAssignment,
         uuid.UUID(assigned.get_json()['assignment']['id']),
     )
+    occupied = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments',
+        json={
+            **assignment_payload(day, occupied_judge.id, role='A'),
+            'bench': 'B',
+        },
+        headers=headers,
+    )
+    assert occupied.status_code == 201
     assert db.session.execute(
         select(JudgeAccessWindow).where(
             JudgeAccessWindow.judge_user_id == old_judge.id
@@ -449,6 +446,17 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         json={'gymnast_id': str(gymnasts['A_AM_1'].id)},
         headers=headers,
     ).status_code == 200
+
+    occupied_target = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments/'
+        f'{assignment.id}/reassign',
+        json={'judge_id': str(occupied_judge.id)},
+        headers=headers,
+    )
+    assert occupied_target.status_code == 409
+    assert occupied_target.get_json()['code'] == 'JUDGE_DAY_CONFLICT'
+    db.session.refresh(assignment)
+    assert assignment.superseded_at is None
 
     response = client.post(
         f'/api/v1/championships/{championship.id}/judge-assignments/'

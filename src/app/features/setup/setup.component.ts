@@ -1,4 +1,7 @@
-import { InitialImportQueueService } from '../../core/services/initial-import-queue.service';
+import {
+    InitialImportDay,
+    InitialImportQueueService
+} from '../../core/services/initial-import-queue.service';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -40,8 +43,12 @@ import { CredentialDeliveryService } from '../../core/services/credential-delive
 
 import { ApiErrorBody } from '../../core/models/api-error.model';
 import {
+    Bench,
     CloudChampionshipDetail,
+    CompetitionSession,
+    ImportJudge,
     ImportMarker,
+    ImportCutoffDecision,
     ImportPreview,
     ImportPreviewSheet
 } from '../../core/models/cloud.model';
@@ -50,6 +57,17 @@ import {
 } from '../../core/services/cloud-championship-api.service';
 
 type CutoffOption = number | 'MANUAL' | null;
+
+interface JudgeBenchGroup {
+    bench: Bench;
+    judges: ImportJudge[];
+}
+
+interface JudgeSessionGroup {
+    session: CompetitionSession;
+    benches: JudgeBenchGroup[];
+    total: number;
+}
 
 @Component({
     selector: 'app-setup',
@@ -91,13 +109,32 @@ export class SetupComponent implements OnInit {
     initialDayFiles: Array<{ date: string; file: File | null; validating?: boolean; validated?: boolean; error?: string }> = [
         { date: '', file: null }
     ];
-    get creationQueue(): Array<{ date: string; file: File }> {
+    get creationQueue(): InitialImportDay[] {
         return this.initialImportQueue.days;
     }
+
+    get initialReviewTotal(): number {
+        const currentSequence = this.preview?.preview.sheets[0]?.sequence ?? 0;
+        return Math.max(this.creationQueue.length, currentSequence);
+    }
+
+    get initialReviewCurrent(): number {
+        return this.preview?.preview.sheets[0]?.sequence ?? 1;
+    }
+
+    get initialReviewRemaining(): number {
+        return Math.max(this.initialReviewTotal - this.initialReviewCurrent, 0);
+    }
+
+    get hasInitialReviewQueue(): boolean {
+        return this.initialSetup
+            && Boolean(this.preview)
+            && (this.initialReviewTotal > 1 || this.initialReviewCurrent > 1);
+    }
     loading = false;
+    confirmingDay = false;
     pageLoading = false;
     errorMessage = '';
-    savingCutoffSequence: number | null = null;
     cutoffOptions: Record<number, CutoffOption> = {};
     manualRows: Record<number, number | null> = {};
     invalidCutoffSequences = new Set<number>();
@@ -136,25 +173,10 @@ export class SetupComponent implements OnInit {
         }
     }
 
-    get allCutoffsConfirmed(): boolean {
-        return Boolean(
-            this.preview?.preview.sheets.length
-            && this.preview.preview.sheets.every(
-                (sheet) => sheet.cutoff_confirmed
-            )
-        );
-    }
-
-    get canConfirmImport(): boolean {
-        return this.allCutoffsConfirmed && !this.cutoffsDirty;
-    }
-
-    get savingCutoffs(): boolean {
-        return this.savingCutoffSequence !== null;
-    }
-
-    get cutoffsDirty(): boolean {
-        return this.dirtyCutoffSequences.size > 0;
+    get canConfirmDay(): boolean {
+        return Boolean(this.preview?.preview.sheets.length)
+            && !this.loading
+            && !this.confirmingDay;
     }
 
     initialDayDateError(index: number): string {
@@ -183,6 +205,10 @@ export class SetupComponent implements OnInit {
     }
 
     trackInitialDay(index: number): number {
+        return index;
+    }
+
+    trackInitialReview(index: number): number {
         return index;
     }
 
@@ -264,10 +290,12 @@ export class SetupComponent implements OnInit {
                 this.loading = false;
                 this.initialImportQueue.championshipId = championship.id;
                 this.initialImportQueue.days = providedDays.map((day) => ({
-                    date: day.date, file: day.file!
+                    date: day.date,
+                    file: day.file!,
+                    fileName: day.file!.name
                 }));
                 if (this.creationQueue.length) {
-                    void this.uploadNextInitialDay(championship.id);
+                    void this.prepareInitialDayPreviews(championship.id);
                 } else {
                     void this.router.navigate(['/championships', championship.id]);
                 }
@@ -333,8 +361,16 @@ export class SetupComponent implements OnInit {
         this.competitionDate = next.date;
         try {
             const preview = await firstValueFrom(
-                this.championshipsApi.createImportPreview(championshipId, next.file, next.date)
+                next.previewId
+                    ? this.championshipsApi.getImportPreview(championshipId, next.previewId)
+                    : this.championshipsApi.createImportPreview(
+                        championshipId,
+                        next.file!,
+                        next.date
+                    )
             );
+            next.previewId = preview.id;
+            next.fileName = preview.source_file_name || next.fileName;
             this.competitionDate = next.date;
             this.preview = preview;
             this.initializeCutoffs(preview);
@@ -354,6 +390,36 @@ export class SetupComponent implements OnInit {
         }
     }
 
+    private async prepareInitialDayPreviews(championshipId: string): Promise<void> {
+        this.loading = true;
+        this.errorMessage = '';
+        try {
+            for (const day of this.creationQueue) {
+                if (day.previewId) continue;
+                if (!day.file) {
+                    throw new Error('Falta la planilla de uno de los días iniciales.');
+                }
+                const preview = await firstValueFrom(
+                    this.championshipsApi.createImportPreview(
+                        championshipId,
+                        day.file,
+                        day.date
+                    )
+                );
+                day.previewId = preview.id;
+                day.fileName = preview.source_file_name || day.fileName;
+            }
+            await this.uploadNextInitialDay(championshipId);
+        } catch (error) {
+            this.errorMessage = this.apiMessage(
+                error,
+                'No fue posible guardar las previsualizaciones de todos los días.'
+            );
+        } finally {
+            this.loading = false;
+        }
+    }
+
     retryInitialDay(): void {
         if (!this.championship || this.loading || !this.creationQueue.length) return;
         void this.uploadNextInitialDay(this.championship.id);
@@ -366,6 +432,8 @@ export class SetupComponent implements OnInit {
         this.selectFile(event);
         if (!this.selectedFile || this.errorMessage) return;
         this.creationQueue[0].file = this.selectedFile;
+        this.creationQueue[0].fileName = this.selectedFile.name;
+        this.creationQueue[0].previewId = undefined;
         input.value = '';
         this.retryInitialDay();
     }
@@ -445,6 +513,45 @@ export class SetupComponent implements OnInit {
         return `${judge.role}${group.indexOf(judge) + 1}`;
     }
 
+    get groupedJudges(): JudgeSessionGroup[] {
+        const judges = this.preview?.preview.judges ?? [];
+        const sessions: CompetitionSession[] = ['AM', 'PM'];
+        const benches: Bench[] = ['A', 'B'];
+
+        return sessions
+            .map((session) => {
+                const groupedBenches = benches
+                    .map((bench) => ({
+                        bench,
+                        judges: judges.filter((judge) =>
+                            judge.session === session && judge.bench === bench)
+                    }))
+                    .filter((group) => group.judges.length > 0);
+
+                return {
+                    session,
+                    benches: groupedBenches,
+                    total: groupedBenches.reduce(
+                        (total, group) => total + group.judges.length,
+                        0
+                    )
+                };
+            })
+            .filter((group) => group.benches.length > 0);
+    }
+
+    trackJudgeSession(_index: number, group: JudgeSessionGroup): string {
+        return group.session;
+    }
+
+    trackJudgeBench(_index: number, group: JudgeBenchGroup): string {
+        return group.bench;
+    }
+
+    trackJudge(_index: number, judge: ImportJudge): string {
+        return `${judge.session}-${judge.bench}-${judge.rut}`;
+    }
+
     eligibleMarkers(sheet: ImportPreviewSheet): ImportMarker[] {
         return sheet.markers.filter((marker) => marker.eligible_cutoff);
     }
@@ -476,82 +583,84 @@ export class SetupComponent implements OnInit {
         return this.dirtyCutoffSequences.has(sheet.sequence);
     }
 
-    confirmCutoffs(sheet: ImportPreviewSheet): void {
-        if (!this.preview || !this.championship || this.savingCutoffs) return;
+    private cutoffDecisionsForConfirmation(): ImportCutoffDecision[] | null {
+        if (!this.preview) return null;
 
-        const option = this.cutoffOptions[sheet.sequence];
-        const rawRow = option === 'MANUAL'
-            ? this.manualRows[sheet.sequence]
-            : option;
-        const row = Number(rawRow);
-        if (!Number.isInteger(row) || row < 1 || row > sheet.max_content_row + 1) {
-            this.invalidCutoffSequences.add(sheet.sequence);
-            this.invalidCutoffSequences = new Set(this.invalidCutoffSequences);
-            this.errorMessage = `Indica una fila de corte válida para el día ${sheet.sequence}.`;
-            return;
+        const invalidSequences = new Set<number>();
+        const decisions: ImportCutoffDecision[] = [];
+        for (const sheet of this.preview.preview.sheets) {
+            const option = this.cutoffOptions[sheet.sequence];
+            const rawRow = option === 'MANUAL'
+                ? this.manualRows[sheet.sequence]
+                : option;
+            const row = Number(rawRow);
+            if (!Number.isInteger(row) || row < 1 || row > sheet.max_content_row + 1) {
+                invalidSequences.add(sheet.sequence);
+                continue;
+            }
+            decisions.push({
+                sequence: sheet.sequence,
+                cutoff_row: row,
+                confirmed: true
+            });
         }
 
-        this.savingCutoffSequence = sheet.sequence;
-        this.errorMessage = '';
-        this.championshipsApi.updateImportPreview(
-            this.championship.id,
-            this.preview.id,
-            {
-                sheets: [{
-                    sequence: sheet.sequence,
-                    cutoff_row: row,
-                    confirmed: true
-                }]
-            }
-        ).subscribe({
-            next: (preview) => {
-                this.preview = preview;
-                this.dirtyCutoffSequences.delete(sheet.sequence);
-                this.initializeCutoffs(preview, true);
-                this.savingCutoffSequence = null;
-                this.snackBar.open(
-                    `Cortes AM/PM del día ${sheet.sequence} confirmados.`,
-                    'Cerrar',
-                    { duration: 3500 }
-                );
-            },
-            error: (error) => {
-                this.errorMessage = this.apiMessage(error, 'No fue posible confirmar los cortes.');
-                this.savingCutoffSequence = null;
-            }
-        });
+        this.invalidCutoffSequences = invalidSequences;
+        if (invalidSequences.size) {
+            this.errorMessage = invalidSequences.size === 1
+                ? `Indica una fila de corte válida para el día ${[...invalidSequences][0]}.`
+                : 'Indica una fila de corte válida para cada hoja antes de confirmar el día.';
+            return null;
+        }
+        return decisions;
     }
 
-    async confirmImport(): Promise<void> {
+    async confirmDay(): Promise<void> {
         if (
             !this.preview
             || !this.championship
-            || !this.canConfirmImport
-            || this.loading
+            || !this.canConfirmDay
         ) {
             return;
         }
 
+        const cutoffDecisions = this.cutoffDecisionsForConfirmation();
+        if (!cutoffDecisions) return;
+
+        this.confirmingDay = true;
+
         const confirmation = await Swal.fire({
-            title: 'Confirmar día de competencia',
+            title: 'Confirmar Día',
             html:
-                `Se agregará <strong>${this.preview.preview.sheets[0].name}</strong> `
+                `Se confirmarán los cortes AM/PM y se agregará <strong>${this.preview.preview.sheets[0].name}</strong> `
                 + `el <strong>${this.competitionDate || this.preview.decisions.competition_date}</strong>, `
                 + `con <strong>${this.preview.preview.total_categories} categorías</strong> `
                 + `y <strong>${this.preview.preview.total_gymnasts} participantes</strong>.`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Confirmar importación',
+            confirmButtonText: 'Confirmar Día',
             cancelButtonText: 'Volver a revisar',
             confirmButtonColor: '#4f46e5'
         });
         if (!confirmation.isConfirmed) {
+            this.confirmingDay = false;
             return;
         }
 
         this.loading = true;
         this.errorMessage = '';
         try {
+            const updatedPreview = await firstValueFrom(
+                this.championshipsApi.updateImportPreview(
+                    this.championship.id,
+                    this.preview.id,
+                    { sheets: cutoffDecisions }
+                )
+            );
+            this.preview = updatedPreview;
+            this.dirtyCutoffSequences.clear();
+            this.initializeCutoffs(updatedPreview, true);
+
             const result = await firstValueFrom(
                 this.championshipsApi.confirmImport(
                     this.championship.id,
@@ -559,7 +668,7 @@ export class SetupComponent implements OnInit {
                 )
             );
             this.snackBar.open(
-                `Día agregado: ${result.imported.categories} categorías`,
+                `Día confirmado: ${result.imported.categories} categorías`,
                 'Cerrar',
                 { duration: 4500 }
             );
@@ -589,6 +698,7 @@ export class SetupComponent implements OnInit {
             );
         } finally {
             this.loading = false;
+            this.confirmingDay = false;
         }
     }
 
@@ -610,7 +720,11 @@ export class SetupComponent implements OnInit {
                     return;
                 }
                 this.championship = championship;
-                if (this.routePreviewId && (this.addingDay || this.initialSetup)) {
+                if (this.routePreviewId && this.initialSetup) {
+                    this.loadInitialPreviewQueue(championship.id, this.routePreviewId);
+                    return;
+                }
+                if (this.routePreviewId && this.addingDay) {
                     this.loadPreview(championship.id, this.routePreviewId);
                     return;
                 }
@@ -628,6 +742,25 @@ export class SetupComponent implements OnInit {
                 );
                 this.pageLoading = false;
             }
+            });
+    }
+
+    private loadInitialPreviewQueue(
+        championshipId: string,
+        previewId: string
+    ): void {
+        this.championshipsApi.listImportPreviews(championshipId).subscribe({
+            next: (previews) => {
+                this.initialImportQueue.championshipId = championshipId;
+                this.initialImportQueue.days = previews.map((preview) => ({
+                    date: preview.decisions.competition_date || '',
+                    file: null,
+                    fileName: preview.source_file_name || 'Planilla guardada',
+                    previewId: preview.id
+                }));
+                this.loadPreview(championshipId, previewId);
+            },
+            error: () => this.loadPreview(championshipId, previewId)
         });
     }
 

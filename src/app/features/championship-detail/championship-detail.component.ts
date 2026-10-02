@@ -319,6 +319,38 @@ export class ChampionshipDetailComponent implements OnInit {
             && item.role === this.assignmentDraft.role).length >= 4;
     }
 
+    get availableJudgeSearchResults(): CloudJudge[] {
+        return this.judgeSearchResults.filter((judge) =>
+            !this.isJudgeAssignedOnSelectedDay(judge.id));
+    }
+
+    availableReplacementJudges(assignment: JudgeAssignment): CloudJudge[] {
+        return this.judges.filter((judge) =>
+            judge.id !== assignment.judge.id
+            && !this.isJudgeAssignedOnSelectedDay(judge.id, assignment.id));
+    }
+
+    isReplacementJudgeAvailable(assignment: JudgeAssignment): boolean {
+        const judgeId = this.replacementJudgeIds[assignment.id];
+        return Boolean(
+            judgeId
+            && this.availableReplacementJudges(assignment).some(
+                (judge) => judge.id === judgeId
+            )
+        );
+    }
+
+    private isJudgeAssignedOnSelectedDay(
+        judgeId: string,
+        excludedAssignmentId?: string
+    ): boolean {
+        return this.assignments.some((assignment) =>
+            assignment.competition_day.id === this.selectedAssignmentDayId
+            && assignment.id !== excludedAssignmentId
+            && assignment.judge.id === judgeId
+        );
+    }
+
     get inlineJudgeInvalid(): boolean {
         const draft = this.assignmentDraft;
         return !draft.firstName.trim() || !draft.lastName.trim()
@@ -374,6 +406,14 @@ export class ChampionshipDetailComponent implements OnInit {
     }
 
     selectJudge(judge: CloudJudge): void {
+        if (this.isJudgeAssignedOnSelectedDay(judge.id)) {
+            this.snackBar.open(
+                'Este juez ya está asignado en este día y no está disponible.',
+                'Cerrar',
+                { duration: 4500 }
+            );
+            return;
+        }
         this.assignmentDraft.judgeId = judge.id;
         this.judgeSearchText = `${judge.first_name} ${judge.last_name} · ${judge.rut}`;
         this.judgeSearchResults = [];
@@ -394,6 +434,14 @@ export class ChampionshipDetailComponent implements OnInit {
         const draft = this.assignmentDraft;
         if (this.assignmentAreaFull) {
             this.snackBar.open('Máximo 4 jueces por área, banca y jornada.', 'Cerrar', { duration: 4500 });
+            return;
+        }
+        if (draft.judgeId && this.isJudgeAssignedOnSelectedDay(draft.judgeId)) {
+            this.snackBar.open(
+                'El juez seleccionado ya está asignado en este día. Elige otro juez disponible.',
+                'Cerrar',
+                { duration: 5000 }
+            );
             return;
         }
         if (!draft.judgeId && !this.showNewJudgeForm) {

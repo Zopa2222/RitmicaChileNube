@@ -93,14 +93,14 @@ import {
             position: sticky;
             top: 0;
             z-index: 1000;
-            min-height: 76px;
+            min-height: 84px;
             padding: 0 clamp(1rem, 3vw, 2.5rem);
             background: #fff;
             border-bottom: 1px solid #e2e8f0;
             box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
         }
         .toolbar-brand {
-            --brand-logo-size: 52px;
+            --brand-logo-size: 62px;
         }
         .toolbar-spacer { flex: 1; }
         .identity {
@@ -124,11 +124,11 @@ import {
         }
         @media (max-width: 640px) {
             .session-toolbar {
-                min-height: 68px;
+                min-height: 74px;
                 padding: 0 1rem;
             }
             .toolbar-brand {
-                --brand-logo-size: 46px;
+                --brand-logo-size: 54px;
             }
             .toolbar-brand .brand-lockup__subtitle,
             .identity,

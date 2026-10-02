@@ -14,7 +14,7 @@
 
 .topbar {
     max-width: 1440px;
-    height: 98px;
+    height: 112px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -22,7 +22,7 @@
 }
 
 .brand {
-    --brand-logo-size: 64px;
+    --brand-logo-size: 80px;
 }
 
 .brand-logo {
@@ -476,7 +476,7 @@
     }
 
     .topbar {
-        height: 64px;
+        height: 78px;
     }
 
     .brand-lockup__subtitle,
@@ -485,7 +485,7 @@
     }
 
     .brand {
-        --brand-logo-size: 44px;
+        --brand-logo-size: 56px;
     }
 
     .championship-hero {

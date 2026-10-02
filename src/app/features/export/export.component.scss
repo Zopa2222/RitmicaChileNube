@@ -22,19 +22,19 @@
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.4);
     border-radius: 50px;
-    padding: 0.5rem 1rem;
+    padding: 0.65rem 1.15rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 
     .export-top-logo {
-        width: 32px;
-        height: 32px;
+        width: 56px;
+        height: 56px;
         border-radius: 50%;
         object-fit: cover;
         border: 2px solid #667eea;
     }
 
     .export-institution-name {
-        font-size: 0.9rem;
+        font-size: 1.05rem;
         font-weight: 700;
         color: var(--text-main);
         letter-spacing: 0.05em;

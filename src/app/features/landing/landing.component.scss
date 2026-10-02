@@ -95,8 +95,8 @@
 }
 
 .hero-logo-img {
-    width: 200px;
-    height: 200px;
+    width: min(230px, 62vw);
+    height: min(230px, 62vw);
     border-radius: 50%;
     object-fit: cover;
     margin-bottom: 1rem;

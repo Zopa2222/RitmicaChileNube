@@ -13,7 +13,10 @@ import { AuthService } from '../../core/auth/auth.service';
     imports: [CommonModule, RouterLink, MatButtonModule, MatProgressSpinnerModule],
     template: `
         <main>
-            <img src="assets/logo.jpeg" alt="Rítmica Chile">
+            <div class="judge-brand">
+                <img src="assets/logo.jpeg" alt="">
+                <div><strong>Rítmica Chile</strong><span>Sistema de puntajes</span></div>
+            </div>
             <h1>Acceso de jueces</h1>
             <mat-spinner *ngIf="loading" diameter="40" aria-label="Ingresando"></mat-spinner>
             <p role="status" aria-live="polite">{{ message }}</p>
@@ -25,10 +28,23 @@ import { AuthService } from '../../core/auth/auth.service';
     styles: [`
         main { max-width: 440px; margin: 8vh auto; padding: 24px;
             text-align: center; color: #1e293b; }
-        img { width: 100px; border-radius: 12px; }
+        .judge-brand { display: inline-flex; align-items: center; gap: 16px; margin-bottom: 1.5rem;
+            padding: 12px 20px 12px 12px; border: 1px solid #e0e7ff; border-radius: 999px;
+            background: white; box-shadow: 0 8px 24px rgba(30, 41, 59, .12); text-align: left; }
+        .judge-brand img { width: 128px; height: 128px; border-radius: 50%; object-fit: cover;
+            border: 3px solid #e0e7ff; }
+        .judge-brand div { display: grid; gap: .3rem; }
+        .judge-brand strong { color: #172554; font-size: 1.25rem; font-weight: 850; }
+        .judge-brand span { color: #4f46e5; font-size: .78rem; font-weight: 800;
+            letter-spacing: .08em; text-transform: uppercase; }
         p { font-size: 1.1rem; line-height: 1.6; }
         mat-spinner { margin: 24px auto; }
         button, a { display: block; width: 100%; margin-top: 16px; min-height: 48px; }
+        @media (max-width: 480px) {
+            .judge-brand { gap: 10px; padding-right: 14px; }
+            .judge-brand img { width: 96px; height: 96px; }
+            .judge-brand strong { font-size: 1.05rem; }
+        }
     `]
 })
 export class JudgeAccessComponent implements OnInit, OnDestroy {

@@ -14,7 +14,12 @@
     top: 1.5rem;
     left: 1.5rem;
     z-index: 2;
-    --brand-logo-size: 60px;
+    --brand-logo-size: 78px;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid rgba(199, 210, 254, 0.8);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 8px 20px rgba(30, 41, 59, 0.1);
 }
 
 .brand .brand-lockup__logo {
@@ -126,7 +131,7 @@ mat-card-actions {
     .brand {
         top: 1rem;
         left: 1rem;
-        --brand-logo-size: 52px;
+        --brand-logo-size: 60px;
     }
 
     .brand-lockup__subtitle {

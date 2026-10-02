@@ -26,6 +26,7 @@ import {
     PublicCatalogResponse,
     PublicCategoryResultsResponse,
     PublicCategorySummary,
+    PublicLiveGymnast,
     PublicSortMode
 } from '../../core/models/public-results.model';
 import {
@@ -63,6 +64,9 @@ export class PublicResultsComponent implements OnInit {
     loadingResults = false;
     noActiveChampionship = false;
     errorMessage = '';
+    liveNavigationMessage = '';
+    selectedLiveGymnastId: string | null = null;
+    private pendingLiveGymnastId: string | null = null;
 
     constructor(
         private readonly publicResultsService: PublicResultsService,
@@ -106,7 +110,27 @@ export class PublicResultsComponent implements OnInit {
             return;
         }
         this.selectedCategory = category;
+        this.selectedLiveGymnastId = null;
         this.loadSelectedCategory();
+    }
+
+    viewLive(gymnast: PublicLiveGymnast): void {
+        if (!gymnast?.gymnast_id || !gymnast.category_id) {
+            this.liveNavigationMessage =
+                'No hay una gimnasta disponible para mostrar en vivo.';
+            return;
+        }
+        if (!this.catalog) {
+            this.liveNavigationMessage =
+                'No hay un campeonato activo para consultar.';
+            return;
+        }
+
+        this.liveNavigationMessage = '';
+        this.pendingLiveGymnastId = gymnast.gymnast_id;
+        this.selectedLiveGymnastId = gymnast.gymnast_id;
+        this.searchControl.setValue('', { emitEvent: false });
+        this.catalogRequests.next('');
     }
 
     changeSort(event: Event): void {
@@ -143,7 +167,10 @@ export class PublicResultsComponent implements OnInit {
         this.categories = response.categories;
         const previousId = this.selectedCategory?.id;
         this.selectedCategory = (
-            this.categories.find(category => category.id === previousId)
+            this.categories.find(category => (
+                category.id === this.pendingLiveCategoryId()
+            ))
+            ?? this.categories.find(category => category.id === previousId)
             ?? this.categories[0]
             ?? null
         );
@@ -152,6 +179,12 @@ export class PublicResultsComponent implements OnInit {
         } else {
             this.categoryResults = null;
             this.loadingResults = false;
+            if (this.pendingLiveGymnastId) {
+                this.pendingLiveGymnastId = null;
+                this.selectedLiveGymnastId = null;
+                this.liveNavigationMessage =
+                    'La gimnasta en vivo ya no está asociada a una categoría disponible.';
+            }
         }
     }
 
@@ -175,6 +208,7 @@ export class PublicResultsComponent implements OnInit {
                 }
                 this.categoryResults = response;
                 this.loadingResults = false;
+                this.scrollToPendingLiveGymnast(response);
             },
             error: () => {
                 if (requestToken !== this.resultRequestToken) {
@@ -193,6 +227,8 @@ export class PublicResultsComponent implements OnInit {
         this.categories = [];
         this.selectedCategory = null;
         this.categoryResults = null;
+        this.pendingLiveGymnastId = null;
+        this.selectedLiveGymnastId = null;
         this.loadingResults = false;
         if (
             error.status === 404
@@ -203,5 +239,40 @@ export class PublicResultsComponent implements OnInit {
         }
         this.errorMessage =
             'No fue posible consultar los resultados públicos.';
+    }
+
+    private pendingLiveCategoryId(): string | null {
+        if (!this.pendingLiveGymnastId) {
+            return null;
+        }
+        return this.catalog?.live_gymnasts?.find(
+            gymnast => gymnast.gymnast_id === this.pendingLiveGymnastId
+        )?.category_id ?? null;
+    }
+
+    private scrollToPendingLiveGymnast(
+        response: PublicCategoryResultsResponse
+    ): void {
+        const gymnastId = this.pendingLiveGymnastId;
+        if (!gymnastId) {
+            return;
+        }
+        if (response.category.id !== this.selectedCategory?.id) {
+            return;
+        }
+        const isInResults = response.results.some(
+            result => result.gymnast_id === gymnastId
+        );
+        this.pendingLiveGymnastId = null;
+        if (!isInResults) {
+            this.selectedLiveGymnastId = null;
+            this.liveNavigationMessage =
+                'La gimnasta ya no está disponible en los resultados. Actualiza para consultar el estado en vivo.';
+            return;
+        }
+        window.setTimeout(() => {
+            document.getElementById(`live-gymnast-${gymnastId}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
     }
 }

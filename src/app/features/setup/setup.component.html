@@ -1,4 +1,5 @@
 <main class="setup-page">
+    <app-judge-link-delivery></app-judge-link-delivery>
     <a mat-button routerLink="/championships" class="back-link">
         <mat-icon>arrow_back</mat-icon>
         Volver a campeonatos
@@ -22,7 +23,7 @@
         </div>
         <div [class.active]="championship && !preview" [class.complete]="preview">
             <span>2</span>
-            <strong>Cargar Excel</strong>
+            <strong>{{ !championship || creationQueue.length ? 'Analizar planillas' : 'Cargar Excel' }}</strong>
         </div>
         <div [class.active]="preview">
             <span>3</span>
@@ -86,16 +87,68 @@
                         </mat-select>
                     </mat-form-field>
                     <mat-form-field appearance="outline">
-                        <mat-label>Fecha inicial</mat-label>
+                        <mat-label>Fecha del primer día</mat-label>
                         <input
                             matInput
                             type="date"
                             formControlName="start_date">
                         <mat-hint>
-                            Cada hoja siguiente corresponde al día siguiente.
+                            Los días de competencia se asignan automáticamente desde esta fecha.
                         </mat-hint>
                         <mat-error>Selecciona la fecha inicial</mat-error>
                     </mat-form-field>
+
+                    <section class="initial-days">
+                        <h3>Días de competencia y planillas <span class="required-label">Obligatorio</span></h3>
+                        <p class="initial-days-help">Las fechas son consecutivas desde el inicio del campeonato. Agrega una planilla .xlsx para cada día.</p>
+                        <div class="initial-day-row" *ngFor="let day of initialDayFiles; let i = index; trackBy: trackInitialDay">
+                            <label>Día {{ i + 1 }} · Fecha
+                                <input type="date"
+                                    #dayDate="ngModel"
+                                    required
+                                    [disabled]="!championshipForm.controls.start_date.value || loading"
+                                    [min]="championshipForm.controls.start_date.value"
+                                    [(ngModel)]="initialDayFiles[i].date"
+                                    (change)="enforceInitialDayMinimum(i, $event)"
+                                    [ngModelOptions]="{standalone: true}"
+                                    [class.invalid-date]="(day.date || dayDate.touched) && initialDayDateError(i)"
+                                    [attr.aria-invalid]="!!initialDayDateError(i)"
+                                    [attr.aria-describedby]="'day-date-error-' + i">
+                                <span class="date-error" [id]="'day-date-error-' + i" aria-live="polite">
+                                    {{ day.date || dayDate.touched ? initialDayDateError(i) : '' }}
+                                </span>
+                            </label>
+                            <div class="initial-planilla">
+                                <span>Planilla del día {{ i + 1 }}</span>
+                                <div class="initial-planilla-actions">
+                                    <input
+                                        #initialDayFileInput
+                                        hidden
+                                        type="file"
+                                        accept=".xlsx"
+                                        [disabled]="loading"
+                                        (change)="selectInitialDayFile(i, $event)">
+                                    <button class="planilla-picker" type="button"
+                                        [disabled]="loading"
+                                        [attr.aria-label]="(day.file ? 'Cambiar planilla del día ' : 'Seleccionar planilla del día ') + (i + 1)"
+                                        (click)="initialDayFileInput.click()">
+                                        <mat-icon>attach_file</mat-icon>
+                                        <span aria-live="polite">{{ day.file?.name || 'Seleccionar planilla .xlsx' }}</span>
+                                    </button>
+                                    <small *ngIf="day.validating" role="status">Analizando planilla…</small>
+                                    <small *ngIf="day.validated" role="status">Planilla validada</small>
+                                    <span *ngIf="day.error" class="date-error" role="alert">{{ day.error }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button mat-stroked-button type="button" (click)="addInitialDay()" [disabled]="loading">
+                            <mat-icon>add</mat-icon> Agregar otro día
+                        </button>
+                        <small>Cada archivo se analizará y confirmará antes de continuar con el siguiente.</small>
+                        <a class="sample-workbook-link" href="/assets/PLANILLA_PRUEBA_DIA.xlsx" download="PLANILLA_PRUEBA_DIA.xlsx">
+                            <mat-icon>download</mat-icon> Descargar planilla de ejemplo
+                        </a>
+                    </section>
 
                     <div *ngIf="errorMessage" class="error-message" role="alert">
                         <mat-icon>error_outline</mat-icon>
@@ -106,10 +159,10 @@
                         mat-flat-button
                         color="primary"
                         type="submit"
-                        [disabled]="loading">
+                        [disabled]="loading || initialDayDatesInvalid || initialFilesInvalid">
                         <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
                         <mat-icon *ngIf="!loading">arrow_forward</mat-icon>
-                        Crear borrador y continuar
+                        Crear campeonato
                     </button>
                 </form>
             </mat-card-content>
@@ -128,7 +181,7 @@
     </section>
 
     <section
-        *ngIf="!pageLoading && championship && !preview"
+        *ngIf="!pageLoading && championship && !preview && !creationQueue.length"
         class="upload-section">
         <mat-card>
             <div class="draft-summary">
@@ -146,13 +199,19 @@
                     {{ selectedFile?.name || 'Seleccionar orden de paso' }}
                 </strong>
                 <span>
-                    Archivo .xlsx de hasta 16 MB. Cada hoja representa un día.
+                    Archivo .xlsx de hasta 16 MB con una hoja de orden del día
+                    y otra hoja llamada Jueces.
                 </span>
                 <input
                     id="excel-file"
                     type="file"
                     accept=".xlsx"
                     (change)="selectFile($event)">
+            </label>
+
+            <label class="competition-date-field">
+                Fecha de este día
+                <input type="date" [min]="championship.start_date" [(ngModel)]="competitionDate">
             </label>
 
             <div *ngIf="errorMessage" class="error-message" role="alert">
@@ -175,11 +234,74 @@
         </mat-card>
     </section>
 
+    <section *ngIf="!pageLoading && championship && !preview && creationQueue.length" class="upload-section">
+        <mat-card>
+            <div class="draft-summary">
+                <span>{{ loading ? 'Analizando planilla' : 'Revisión de planilla pendiente' }}</span>
+                <h2>{{ championship.name }}</h2>
+                <p>Fecha de competencia: {{ creationQueue[0].date | date:'dd/MM/yyyy':'UTC' }}</p>
+                <strong>{{ creationQueue[0].file?.name || creationQueue[0].fileName }}</strong>
+                <p>Las planillas ya están seleccionadas. Cada día se analiza automáticamente antes de revisar y confirmar sus cortes.</p>
+            </div>
+            <mat-spinner *ngIf="loading" diameter="32"></mat-spinner>
+            <ng-container *ngIf="!loading && errorMessage">
+                <div class="error-message" role="alert">
+                    <mat-icon>error_outline</mat-icon>
+                    {{ errorMessage }}
+                </div>
+                <p>Revisa el error de esta planilla. Puedes reemplazarla por una versión corregida; las demás planillas se conservan.</p>
+                <input #correctedDayFile hidden type="file" accept=".xlsx" (change)="replaceQueuedDayFile($event)">
+                <div class="upload-actions">
+                    <button mat-stroked-button type="button" (click)="correctedDayFile.click()">Reemplazar planilla</button>
+                    <button mat-flat-button color="primary" type="button" (click)="retryInitialDay()">Reintentar análisis</button>
+                </div>
+            </ng-container>
+        </mat-card>
+    </section>
+
     <section *ngIf="preview && championship" class="preview-section">
+        <section
+            *ngIf="hasInitialReviewQueue"
+            class="initial-review-queue"
+            aria-labelledby="initial-review-queue-title">
+            <div class="initial-review-queue-heading">
+                <div>
+                    <span class="eyebrow">Importación inicial</span>
+                    <h2 id="initial-review-queue-title">
+                        Día {{ initialReviewCurrent }} de {{ initialReviewTotal }} en revisión
+                    </h2>
+                    <p>
+                        Confirma este día para abrir la revisión del siguiente. Los archivos ya cargados se conservan en este orden.
+                    </p>
+                </div>
+                <span class="initial-review-count" aria-live="polite">
+                    {{ initialReviewRemaining }} {{ initialReviewRemaining === 1 ? 'día pendiente' : 'días pendientes' }}
+                </span>
+            </div>
+
+            <ol class="initial-review-list">
+                <li
+                    *ngFor="let day of creationQueue; let i = index; trackBy: trackInitialReview"
+                    [class.current]="i === 0"
+                    [class.locked]="i > 0">
+                    <span class="initial-review-step">{{ initialReviewCurrent + i }}</span>
+                    <div class="initial-review-file">
+                        <strong>Día {{ initialReviewCurrent + i }}</strong>
+                        <span>{{ day.date | date:'dd/MM/yyyy':'UTC' }}</span>
+                        <small>{{ day.file?.name || day.fileName }}</small>
+                    </div>
+                    <span class="initial-review-status">
+                        <mat-icon aria-hidden="true">{{ i === 0 ? 'rate_review' : 'lock' }}</mat-icon>
+                        {{ i === 0 ? 'En revisión' : 'Se abrirá después' }}
+                    </span>
+                </li>
+            </ol>
+        </section>
+
         <div class="preview-summary">
             <mat-card>
-                <span>Días</span>
-                <strong>{{ preview.preview.total_days }}</strong>
+                <span>Día</span>
+                <strong>{{ preview.preview.sheets[0].name }}</strong>
             </mat-card>
             <mat-card>
                 <span>Categorías</span>
@@ -195,13 +317,62 @@
             </mat-card>
         </div>
 
+        <mat-card *ngIf="preview.preview.judges.length" class="judge-preview">
+            <h2 id="detected-judges-title">Jueces detectados</h2>
+            <p>Se asignarán a la banca y jornada indicadas en la hoja Jueces.</p>
+            <div class="judge-session-groups">
+                <section
+                    *ngFor="let sessionGroup of groupedJudges; trackBy: trackJudgeSession"
+                    class="judge-session-group"
+                    [attr.aria-labelledby]="'detected-judges-' + sessionGroup.session">
+                    <header class="judge-session-heading">
+                        <div>
+                            <span class="judge-group-eyebrow">Jornada</span>
+                            <h3 [id]="'detected-judges-' + sessionGroup.session">
+                                {{ sessionGroup.session }}
+                            </h3>
+                        </div>
+                        <span class="judge-group-count">
+                            {{ sessionGroup.total }} {{ sessionGroup.total === 1 ? 'juez' : 'jueces' }}
+                        </span>
+                    </header>
+
+                    <div class="judge-bench-groups">
+                        <section
+                            *ngFor="let benchGroup of sessionGroup.benches; trackBy: trackJudgeBench"
+                            class="judge-bench-group"
+                            [attr.aria-labelledby]="'detected-judges-' + sessionGroup.session + '-bench-' + benchGroup.bench">
+                            <header class="judge-bench-heading">
+                                <h4 [id]="'detected-judges-' + sessionGroup.session + '-bench-' + benchGroup.bench">
+                                    Banca {{ benchGroup.bench }}
+                                </h4>
+                                <span>{{ benchGroup.judges.length }}</span>
+                            </header>
+                            <ul>
+                                <li *ngFor="let judge of benchGroup.judges; trackBy: trackJudge">
+                                    <span class="judge-role-badge">{{ previewJudgeRoleLabel(judge) }}</span>
+                                    <div class="judge-details">
+                                        <strong>{{ judge.full_name }}</strong>
+                                        <span>RUT {{ judge.rut }}</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </section>
+                    </div>
+                </section>
+            </div>
+        </mat-card>
+
         <div class="preview-toolbar">
             <div>
-                <h2>Revisión por hoja</h2>
+                <h2>Revisión del día</h2>
                 <p>
-                    Cada corte confirmado separa AM de PM. Las categorías no
-                    pueden dividirse entre ambos tramos.
+                    Revisa los cortes AM/PM. Al confirmar el día se guardarán
+                    todos juntos y las categorías no pueden dividirse entre tramos.
                 </p>
+            </div>
+            <div class="day-date-summary">
+                Fecha de competencia: <strong>{{ preview.decisions.competition_date }}</strong>
             </div>
         </div>
 
@@ -334,20 +505,6 @@
                 </div>
             </details>
 
-            <div class="sheet-card-actions">
-                <button
-                    mat-flat-button
-                    color="primary"
-                    type="button"
-                    (click)="confirmCutoffs(sheet)"
-                    [disabled]="savingCutoffs || (sheet.cutoff_confirmed && !isCutoffDirty(sheet))">
-                    <mat-spinner
-                        *ngIf="savingCutoffSequence === sheet.sequence"
-                        diameter="20"></mat-spinner>
-                    <mat-icon *ngIf="savingCutoffSequence !== sheet.sequence">done_all</mat-icon>
-                    Confirmar cortes AM/PM
-                </button>
-            </div>
         </article>
 
         <div *ngIf="errorMessage" class="error-message" role="alert">
@@ -358,23 +515,23 @@
         <footer class="confirmation-bar">
             <div>
                 <strong>
-                    {{ allCutoffsConfirmed
-                        ? (cutoffsDirty ? 'Hay cambios pendientes en los cortes' : 'Todos los cortes están confirmados')
-                        : 'Aún existen hojas pendientes' }}
+                    {{ confirmingDay || loading
+                        ? 'Confirmando el día…'
+                        : 'Revisa los cortes y confirma el día' }}
                 </strong>
                 <span>
-                    La importación sigue siendo reversible hasta confirmar.
+                    Se guardarán los cortes AM/PM y el orden de paso en una sola acción.
                 </span>
             </div>
             <button
                 mat-flat-button
                 color="primary"
                 type="button"
-                (click)="confirmImport()"
-                [disabled]="!canConfirmImport || loading || savingCutoffs">
-                <mat-spinner *ngIf="loading" diameter="22"></mat-spinner>
-                <mat-icon *ngIf="!loading">task_alt</mat-icon>
-                Confirmar orden de paso
+                (click)="confirmDay()"
+                [disabled]="!canConfirmDay">
+                <mat-spinner *ngIf="loading || confirmingDay" diameter="22"></mat-spinner>
+                <mat-icon *ngIf="!loading && !confirmingDay">task_alt</mat-icon>
+                Confirmar Día
             </button>
         </footer>
     </section>

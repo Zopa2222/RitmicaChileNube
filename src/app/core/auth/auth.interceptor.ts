@@ -13,6 +13,8 @@ import { AuthStateService } from './auth-state.service';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const AUTHENTICATION_ENDPOINTS = [
     '/api/v1/auth/login',
+    '/api/v1/auth/admin/login',
+    '/api/v1/auth/judge/link',
     '/api/v1/auth/me'
 ];
 
@@ -72,8 +74,9 @@ export const cloudAuthInterceptor: HttpInterceptorFn = (request, next) => {
                 error.status === 401
                 && !isAuthenticationEndpoint(request.url)
             ) {
+                const isJudge = authState.user?.account_type === 'JUDGE' || router.url.startsWith('/cabina-juez');
                 authState.clear();
-                void router.navigate(['/ingresar'], {
+                void router.navigate([isJudge ? '/acceso-juez' : '/administracion/ingresar'], {
                     queryParams: {
                         returnUrl: router.url,
                         sessionExpired: true
@@ -82,9 +85,10 @@ export const cloudAuthInterceptor: HttpInterceptorFn = (request, next) => {
             } else if (
                 error.status === 403
                 && body?.code === 'JUDGE_ACCESS_NOT_AVAILABLE'
+                && !isAuthenticationEndpoint(request.url)
             ) {
                 authState.clear();
-                void router.navigate(['/ingresar'], {
+                void router.navigate(['/acceso-juez'], {
                     queryParams: { judgeAccessUnavailable: true }
                 });
             } else if (

@@ -21,6 +21,7 @@ from app.security.access import (
 )
 from app.security.passwords import hash_password, verify_password
 from app.security.permissions import get_authenticated_user
+from app.security.judge_links import token_digest
 
 
 bp = Blueprint('auth', __name__, url_prefix='/api/v1/auth')
@@ -57,6 +58,8 @@ def record_login_event(action, user=None, reason=None):
 def login_username_key():
     """Rate-limit failed attempts per account without penalizing shared Wi-Fi."""
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
     username = str(payload.get('username', '')).strip().upper()
     return f'{request.remote_addr}:{username or "INVALID"}'
 
@@ -66,6 +69,7 @@ def is_failed_login_response(response):
 
 
 @bp.post('/login')
+@bp.post('/admin/login')
 @limiter.limit(lambda: current_app.config['LOGIN_IP_RATE_LIMIT'])
 @limiter.limit(
     lambda: current_app.config['LOGIN_USERNAME_FAILURE_RATE_LIMIT'],
@@ -74,6 +78,8 @@ def is_failed_login_response(response):
 )
 def login():
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
     username = str(payload.get('username', '')).strip().upper()
     password = payload.get('password')
 
@@ -88,7 +94,7 @@ def login():
     user = db.session.execute(
         select(User).where(User.username == username)
     ).scalar_one_or_none()
-    if user is None:
+    if user is None or user.account_type == AccountType.JUDGE:
         record_login_event('LOGIN_FAILED', reason='UNKNOWN_USERNAME')
         db.session.commit()
         return jsonify({
@@ -124,42 +130,56 @@ def login():
             'code': 'ACCOUNT_DISABLED',
         }), 403
 
-    now = datetime.now(timezone.utc)
-    if (
-        user.account_type == AccountType.JUDGE
-        and not judge_has_championship_access(user.id)
-    ):
-        record_login_event(
-            'LOGIN_FAILED',
-            user=user,
-            reason='JUDGE_ACCESS_NOT_AVAILABLE',
-        )
-        db.session.commit()
-        return jsonify({
-            'error': (
-                'El juez no tiene una asignación vigente en un campeonato '
-                'en curso'
-            ),
-            'code': 'JUDGE_ACCESS_NOT_AVAILABLE',
-        }), 403
-
     if needs_rehash:
         user.password_hash = hash_password(password)
-    user.last_login_at = now
+    user.last_login_at = datetime.now(timezone.utc)
     record_login_event('LOGIN_SUCCESS', user=user)
     db.session.commit()
 
-    token_expiry = (
-        current_app.config['JUDGE_JWT_ACCESS_TOKEN_EXPIRES']
-        if user.account_type == AccountType.JUDGE
-        else None
-    )
     token = create_access_token(
         identity=str(user.id),
         additional_claims={'account_type': user.account_type.value},
-        expires_delta=token_expiry,
     )
     response = make_response(jsonify({'user': serialize_user(user)}))
+    set_access_cookies(response, token)
+    return response
+
+
+@bp.post('/judge/link')
+@limiter.limit(lambda: current_app.config['LOGIN_IP_RATE_LIMIT'])
+def judge_link_login():
+    payload = request.get_json(silent=True)
+    digest = token_digest(payload.get('token') if isinstance(payload, dict) else None)
+    user = db.session.execute(select(User).where(
+        User.judge_access_token_hash == digest,
+        User.account_type == AccountType.JUDGE,
+    )).scalar_one_or_none() if digest else None
+    if user is None:
+        record_login_event('LOGIN_FAILED', reason='INVALID_JUDGE_LINK')
+        db.session.commit()
+        return jsonify({'error': 'El enlace no es válido o fue reemplazado.',
+                        'code': 'INVALID_JUDGE_LINK'}), 401
+    if user.status != UserStatus.ACTIVE:
+        return jsonify({'error': 'La cuenta no está habilitada.',
+                        'code': 'ACCOUNT_DISABLED'}), 403
+    if not judge_has_championship_access(user.id):
+        return jsonify({'error': 'No tienes una asignación disponible en este momento.',
+                        'code': 'JUDGE_ACCESS_NOT_AVAILABLE'}), 403
+
+    user.last_login_at = datetime.now(timezone.utc)
+    record_login_event('LOGIN_SUCCESS', user=user, reason='JUDGE_LINK')
+    db.session.commit()
+    token = create_access_token(
+        identity=str(user.id),
+        additional_claims={
+            'account_type': AccountType.JUDGE.value,
+            'auth_method': 'judge_link',
+            'judge_access_version': user.judge_access_version,
+        },
+        expires_delta=current_app.config['JUDGE_JWT_ACCESS_TOKEN_EXPIRES'],
+    )
+    response = make_response(jsonify({'user': serialize_user(user)}))
+    response.headers['Cache-Control'] = 'no-store'
     set_access_cookies(response, token)
     return response
 

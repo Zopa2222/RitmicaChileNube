@@ -20,6 +20,8 @@ import {
 } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
+import { JudgeLinkDeliveryComponent } from '../../shared/judge-link-delivery.component';
+import { CredentialDeliveryService } from '../../core/services/credential-delivery.service';
 
 import { CloudExportApiService } from '../../core/services/cloud-export-api.service';
 
@@ -49,6 +51,7 @@ import {
     standalone: true,
     imports: [
         CommonModule,
+        JudgeLinkDeliveryComponent,
         FormsModule,
         MatButtonModule,
         MatCardModule,
@@ -81,6 +84,8 @@ export class ChampionshipDetailComponent implements OnInit {
     loading = true;
     processing = false;
     downloading = false;
+    selectedDayFile: File | null = null;
+    selectedDayDate = '';
     managingAssignments = false;
     errorMessage = '';
 
@@ -91,6 +96,7 @@ export class ChampionshipDetailComponent implements OnInit {
         this.route.snapshot.paramMap.get('championshipId') ?? '';
 
     constructor(
+        private readonly credentialDelivery: CredentialDeliveryService,
         private readonly route: ActivatedRoute,
         private readonly router: Router,
         private readonly championshipsApi: CloudChampionshipApiService,
@@ -293,7 +299,8 @@ export class ChampionshipDetailComponent implements OnInit {
 
     assignmentRoleLabel(assignment: JudgeAssignment): string {
         const matchingAssignments = this.assignmentsForSelectedDay()
-            .filter((item) => item.role === assignment.role);
+            .filter((item) => item.role === assignment.role
+                && item.bench === assignment.bench && item.session === assignment.session);
         return `${assignment.role}${matchingAssignments.findIndex((item) =>
             item.id === assignment.id
         ) + 1}`;
@@ -305,6 +312,45 @@ export class ChampionshipDetailComponent implements OnInit {
             && this.championship?.status !== 'DELETED';
     }
 
+    get assignmentAreaFull(): boolean {
+        return this.assignmentsForSelectedDay().filter((item) =>
+            item.bench === this.assignmentDraft.bench
+            && item.session === this.assignmentDraft.session
+            && item.role === this.assignmentDraft.role).length >= 4;
+    }
+
+    get availableJudgeSearchResults(): CloudJudge[] {
+        return this.judgeSearchResults.filter((judge) =>
+            !this.isJudgeAssignedOnSelectedDay(judge.id));
+    }
+
+    availableReplacementJudges(assignment: JudgeAssignment): CloudJudge[] {
+        return this.judges.filter((judge) =>
+            judge.id !== assignment.judge.id
+            && !this.isJudgeAssignedOnSelectedDay(judge.id, assignment.id));
+    }
+
+    isReplacementJudgeAvailable(assignment: JudgeAssignment): boolean {
+        const judgeId = this.replacementJudgeIds[assignment.id];
+        return Boolean(
+            judgeId
+            && this.availableReplacementJudges(assignment).some(
+                (judge) => judge.id === judgeId
+            )
+        );
+    }
+
+    private isJudgeAssignedOnSelectedDay(
+        judgeId: string,
+        excludedAssignmentId?: string
+    ): boolean {
+        return this.assignments.some((assignment) =>
+            assignment.competition_day.id === this.selectedAssignmentDayId
+            && assignment.id !== excludedAssignmentId
+            && assignment.judge.id === judgeId
+        );
+    }
+
     get inlineJudgeInvalid(): boolean {
         const draft = this.assignmentDraft;
         return !draft.firstName.trim() || !draft.lastName.trim()
@@ -313,6 +359,31 @@ export class ChampionshipDetailComponent implements OnInit {
 
     formatInlineRut(value: string): void {
         this.assignmentDraft.rut = formatRutInput(value);
+    }
+
+    selectCompetitionDayFile(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        this.selectedDayFile = input.files?.[0] ?? null;
+    }
+
+    async uploadCompetitionDay(): Promise<void> {
+        if (!this.championship || !this.selectedDayFile || !this.selectedDayDate || this.processing) {
+            this.snackBar.open('Selecciona una fecha y la planilla del día.', 'Cerrar', { duration: 4000 });
+            return;
+        }
+        this.processing = true;
+        try {
+            const preview = await firstValueFrom(this.championshipsApi.addCompetitionDay(
+                this.championship.id, this.selectedDayFile, this.selectedDayDate
+            ));
+            await this.router.navigate(['/championships', this.championship.id, 'import'], {
+                queryParams: { previewId: preview.id, dayUpload: '1', returnToDetail: '1' }
+            });
+        } catch (error) {
+            this.snackBar.open(this.apiMessage(error, 'No fue posible analizar la planilla.'), 'Cerrar', { duration: 5000 });
+        } finally {
+            this.processing = false;
+        }
     }
 
     onJudgeSearchChanged(): void {
@@ -335,6 +406,14 @@ export class ChampionshipDetailComponent implements OnInit {
     }
 
     selectJudge(judge: CloudJudge): void {
+        if (this.isJudgeAssignedOnSelectedDay(judge.id)) {
+            this.snackBar.open(
+                'Este juez ya está asignado en este día y no está disponible.',
+                'Cerrar',
+                { duration: 4500 }
+            );
+            return;
+        }
         this.assignmentDraft.judgeId = judge.id;
         this.judgeSearchText = `${judge.first_name} ${judge.last_name} · ${judge.rut}`;
         this.judgeSearchResults = [];
@@ -353,6 +432,18 @@ export class ChampionshipDetailComponent implements OnInit {
             return;
         }
         const draft = this.assignmentDraft;
+        if (this.assignmentAreaFull) {
+            this.snackBar.open('Máximo 4 jueces por área, banca y jornada.', 'Cerrar', { duration: 4500 });
+            return;
+        }
+        if (draft.judgeId && this.isJudgeAssignedOnSelectedDay(draft.judgeId)) {
+            this.snackBar.open(
+                'El juez seleccionado ya está asignado en este día. Elige otro juez disponible.',
+                'Cerrar',
+                { duration: 5000 }
+            );
+            return;
+        }
         if (!draft.judgeId && !this.showNewJudgeForm) {
             this.snackBar.open(
                 'Busca y selecciona un juez, o crea uno nuevo para continuar.',
@@ -393,9 +484,12 @@ export class ChampionshipDetailComponent implements OnInit {
             this.judgeSearchResults = [];
             this.showNewJudgeForm = false;
             await this.refreshAssignmentData();
+            if (result.credentials) {
+                this.credentialDelivery.addImported(`${draft.firstName} ${draft.lastName}`, result.credentials);
+            }
             this.snackBar.open(
                 result.credentials
-                    ? `Juez asignado. Credenciales: ${result.credentials.username} / ${result.credentials.password}`
+                    ? 'Juez asignado. Copia su enlace de acceso en la bandeja.'
                     : this.championship?.status === 'DRAFT'
                         ? 'Juez asignado correctamente.'
                         : `Juez asignado desde ${result.assignment.effective_from_category.name}.`,
@@ -423,9 +517,12 @@ export class ChampionshipDetailComponent implements OnInit {
             ));
             delete this.replacementJudgeIds[assignment.id];
             await this.refreshAssignmentData();
+            if (result.credentials) {
+                this.credentialDelivery.addImported(result.credentials.username, result.credentials);
+            }
             this.snackBar.open(
                 result.credentials
-                    ? `Juez cambiado. Credenciales: ${result.credentials.username} / ${result.credentials.password}`
+                    ? 'Juez cambiado. Copia su enlace de acceso en la bandeja.'
                     : `Juez cambiado desde ${result.assignment.effective_from_category.name}.`,
                 'Cerrar', { duration: result.credentials ? 8000 : 4500 }
             );
@@ -486,7 +583,7 @@ export class ChampionshipDetailComponent implements OnInit {
         this.championshipsApi
             .listCompetitionDays(this.championshipId)
             .subscribe({
-                next: (days) => {
+        next: (days) => {
                     this.competitionDays = days;
                     this.selectedAssignmentDayId = days[0]?.id ?? '';
                 },

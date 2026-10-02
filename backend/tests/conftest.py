@@ -1,10 +1,19 @@
 import os
 
 import pytest
-from sqlalchemy import event
+from sqlalchemy import event, select
 
 from app import create_app
 from app.extensions import db
+from app.models import User
+from app.security.judge_links import issue_judge_link
+
+
+def login_judge_link(client, username):
+    judge = db.session.execute(select(User).where(User.username == username)).scalar_one()
+    token = issue_judge_link(judge)['access_path'].split('#')[1]
+    db.session.commit()
+    return client.post('/api/v1/auth/judge/link', json={'token': token})
 
 
 @pytest.fixture

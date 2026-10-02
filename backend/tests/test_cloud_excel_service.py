@@ -102,3 +102,22 @@ def test_cutoff_cannot_split_same_category():
 
     with pytest.raises(ExcelImportError):
         build_sheet_plan(analysis['sheets'][0], 3)
+
+
+@pytest.mark.parametrize('role', ['DA', 'DB', 'A', 'E', 'L', 'P'])
+def test_judge_limit_is_per_area_bench_and_session(role):
+    from app.services.cloud_excel_service import _analyze_judges
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(['JORNADA AM', None, None, None, None, None])
+    for index in range(4):
+        sheet.append([f'Juez A{index}', f'1000000{index}', role,
+                      f'Juez B{index}', f'2000000{index}', role])
+    sheet.append(['JORNADA PM', None, None, None, None, None])
+    for index in range(4):
+        sheet.append([f'Juez PM{index}', f'3000000{index}', role, None, None, None])
+    assert len(_analyze_judges(sheet)) == 12
+    sheet.append(['Quinto Juez', '40000000', role, None, None, None])
+    with pytest.raises(ExcelImportError, match='Máximo 4 jueces'):
+        _analyze_judges(sheet)

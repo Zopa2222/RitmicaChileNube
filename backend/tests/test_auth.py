@@ -52,6 +52,10 @@ def create_user(account_type, username, password='Clave-Segura-123', rut=None):
 
 
 def login(client, username='ADMIN', password='Clave-Segura-123'):
+    from conftest import login_judge_link
+    user = db.session.execute(select(User).where(User.username == username)).scalar_one_or_none()
+    if user and user.account_type == AccountType.JUDGE:
+        return login_judge_link(client, username)
     return client.post(
         '/api/v1/auth/login',
         json={'username': username, 'password': password},

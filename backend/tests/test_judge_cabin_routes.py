@@ -44,10 +44,8 @@ def create_user(account_type, username, rut=None):
 
 
 def login_judge(client, username):
-    response = client.post(
-        '/api/v1/auth/login',
-        json={'username': username, 'password': JUDGE_PASSWORD},
-    )
+    from conftest import login_judge_link
+    response = login_judge_link(client, username)
     assert response.status_code == 200
     csrf_cookie = client.get_cookie('ritmica_csrf')
     return {'X-CSRF-TOKEN': csrf_cookie.value}

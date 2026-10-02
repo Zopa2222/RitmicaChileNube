@@ -106,6 +106,122 @@
     justify-self: end;
 }
 
+.initial-days {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.initial-days h3,
+.initial-days small {
+    margin: 0;
+}
+
+.initial-days h3 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.required-label {
+    padding: 0.2rem 0.5rem;
+    color: #991b1b;
+    border-radius: 999px;
+    background: #fee2e2;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+.initial-days-help {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.initial-day-row {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.initial-days .initial-day-row > label,
+.initial-planilla,
+.competition-date-field,
+.add-day-panel label {
+    display: grid;
+    gap: 0.4rem;
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.initial-days .date-error {
+    color: #b91c1c;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.initial-days input.invalid-date {
+    border-color: #b91c1c;
+    outline-color: #b91c1c;
+}
+
+.initial-planilla-actions {
+    display: grid;
+    min-height: 40px;
+    align-items: start;
+    gap: 0.5rem;
+}
+
+.planilla-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 40px;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    text-align: left;
+    cursor: pointer;
+}
+
+.planilla-picker span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.sample-workbook-link {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.35rem;
+    color: #4338ca;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.sample-workbook-link:hover {
+    text-decoration: underline;
+}
+
+.initial-days input,
+.competition-date-field input,
+.add-day-panel input {
+    min-height: 40px;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+}
+
 .help-card {
     padding: 1.5rem;
     color: #3730a3;
@@ -205,6 +321,127 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
     margin-bottom: 1.5rem;
+}
+
+.initial-review-queue {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid #c7d2fe;
+    border-radius: 20px;
+    background: #eef2ff;
+}
+
+.initial-review-queue-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.25rem;
+}
+
+.initial-review-queue h2 {
+    margin: 0.35rem 0 0;
+    color: #172554;
+    font-size: 1.45rem;
+    text-wrap: balance;
+}
+
+.initial-review-queue p {
+    max-width: 720px;
+    margin: 0.55rem 0 0;
+    color: #475569;
+    line-height: 1.45;
+}
+
+.initial-review-count {
+    flex: 0 0 auto;
+    padding: 0.45rem 0.7rem;
+    color: #3730a3;
+    border: 1px solid #a5b4fc;
+    border-radius: 999px;
+    background: #fff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.initial-review-list {
+    display: grid;
+    gap: 0.65rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.initial-review-list li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.78);
+}
+
+.initial-review-list li.current {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+
+.initial-review-list li.locked {
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.48);
+}
+
+.initial-review-step {
+    display: inline-grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    color: #fff;
+    border-radius: 50%;
+    background: #4f46e5;
+    font-weight: 800;
+}
+
+.locked .initial-review-step {
+    color: #475569;
+    background: #e2e8f0;
+}
+
+.initial-review-file {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+}
+
+.initial-review-file strong {
+    color: #1e293b;
+}
+
+.initial-review-file span,
+.initial-review-file small {
+    color: #64748b;
+}
+
+.initial-review-file small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.initial-review-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #4338ca;
+    font-size: 0.82rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.locked .initial-review-status {
+    color: #64748b;
 }
 
 .preview-summary mat-card {
@@ -353,17 +590,6 @@ details {
     border-top: 1px solid #e2e8f0;
 }
 
-.sheet-card-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 1.25rem;
-}
-
-.sheet-card-actions button[mat-flat-button] {
-    color: #fff;
-    background: #4f46e5;
-}
-
 summary {
     padding-top: 1rem;
     color: #4338ca;
@@ -455,9 +681,14 @@ summary {
     }
 
     .preview-toolbar,
-    .confirmation-bar {
+    .confirmation-bar,
+    .initial-review-queue-heading {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .initial-review-count {
+        width: fit-content;
     }
 }
 
@@ -475,11 +706,169 @@ summary {
         grid-template-columns: 1fr;
     }
 
+    .initial-day-row {
+        grid-template-columns: 1fr;
+    }
+
     .category-list > div {
         grid-template-columns: 1fr 1fr;
     }
 
     .category-list strong {
         grid-column: 1 / -1;
+    }
+}
+
+.judge-preview {
+    padding: 1.25rem;
+    border-radius: 20px;
+}
+
+.judge-preview > p {
+    margin: 0.35rem 0 1.25rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.judge-session-groups {
+    display: grid;
+    gap: 1rem;
+}
+
+.judge-session-group {
+    padding: 1rem;
+    border: 1px solid #c7d2fe;
+    border-radius: 16px;
+    background: #f8faff;
+}
+
+.judge-session-heading,
+.judge-bench-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.judge-session-heading {
+    margin-bottom: 0.85rem;
+}
+
+.judge-session-heading h3,
+.judge-bench-heading h4 {
+    margin: 0;
+    color: #172554;
+}
+
+.judge-session-heading h3 {
+    font-size: 1.25rem;
+}
+
+.judge-group-eyebrow {
+    display: block;
+    margin-bottom: 0.15rem;
+    color: #6366f1;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.judge-group-count,
+.judge-bench-heading > span {
+    color: #4338ca;
+    font-size: 0.78rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.judge-group-count {
+    padding: 0.35rem 0.6rem;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    background: #fff;
+}
+
+.judge-bench-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.judge-bench-group {
+    min-width: 0;
+    padding: 0.85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 13px;
+    background: #fff;
+}
+
+.judge-bench-heading {
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.judge-bench-heading h4 {
+    font-size: 0.98rem;
+}
+
+.judge-bench-group ul {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.judge-bench-group li {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    padding: 0.65rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    color: #334155;
+    background: #f8fafc;
+}
+
+.judge-role-badge {
+    display: inline-grid;
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    padding: 0.35rem;
+    border-radius: 9px;
+    color: #312e81;
+    background: #e0e7ff;
+    font-weight: 800;
+}
+
+.judge-details {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+}
+
+.judge-details strong,
+.judge-details span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.judge-details strong {
+    color: #0f172a;
+}
+
+.judge-details span {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 680px) {
+    .judge-bench-groups {
+        grid-template-columns: 1fr;
     }
 }

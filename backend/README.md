@@ -59,11 +59,37 @@ Variables requeridas:
 - `GLOBAL_ADMIN_USERNAME`
 - `GLOBAL_ADMIN_PASSWORD`
 
-El login cloud está en `POST /api/v1/auth/login`. La sesión se guarda en una
+El ingreso administrativo está en `/administracion/ingresar` y usa
+`POST /api/v1/auth/admin/login`. La ruta anterior `/api/v1/auth/login` es un
+alias también exclusivo para administrador y superadministrador; rechaza
+cuentas de juez incluso si su antigua contraseña es correcta. La sesión se guarda en una
 cookie HttpOnly y las escrituras autenticadas requieren el encabezado
 `X-CSRF-TOKEN` con el valor de la cookie `ritmica_csrf`. En producción las
 cookies son Secure y las rutas MongoDB heredadas no se registran, salvo que se
 habiliten explícitamente con `ENABLE_LEGACY_ROUTES=True`.
+
+Los jueces ingresan abriendo `/acceso-juez#<token>`; no hay formulario de
+usuario/contraseña para ellos. El cliente retira el fragmento del historial y
+envía el token por `POST /api/v1/auth/judge/link`. Se persiste sólo su hash
+SHA-256; el secreto aleatorio tiene 256 bits y nunca se registra en auditoría.
+El enlace es personal y reutilizable: funciona en cada ventana de acceso
+asignada mientras el campeonato esté ACTIVE o PAUSED. Entre turnos, al finalizar
+la última ventana, al cerrar el campeonato o al retirar las asignaciones, no
+permite entrar ni operar. Las nuevas asignaciones usan el mismo enlace.
+Una desactivación manual siempre bloquea el acceso.
+
+Desde Administración → Jueces, «Generar enlace» entrega un enlace nuevo y
+revoca tanto el anterior como sus sesiones. Las cuentas existentes necesitan
+que el administrador genere y entregue su primer enlace; la migración no
+genera secretos ni modifica asignaciones. Los enlaces recién creados o
+importados permanecen sólo en la bandeja de la sesión administrativa: se pueden
+copiar y, en Jueces, exportar a Excel. No se pueden recuperar desde el hash.
+Usar el origen público HTTPS al abrir la administración para compartir URLs
+accesibles desde los celulares; `localhost` no sirve desde otro dispositivo.
+Quien posee el enlace puede entrar durante esos turnos, por lo que se entrega
+individualmente. La sesión de juez dura hasta 24 horas, pero cada operación
+vuelve a comprobar turno, estado y versión del enlace. Tras expirar la sesión,
+el juez puede abrir nuevamente el mismo enlace durante un turno vigente.
 
 ### Campeonatos e importación cloud
 
@@ -129,7 +155,8 @@ En desarrollo los originales se guardan localmente. En Cloud Run se configura
 | `GET` | `/api/v1/championships/{id}/competition-days` | Lista los días disponibles para configurar. |
 | `GET` | `/api/v1/judges?query=...` | Busca cuentas de juez por nombre, usuario o RUT. |
 | `POST` | `/api/v1/judges` | Crea una cuenta global de juez; solo superadministrador. |
-| `POST` | `/api/v1/admin/judges/credentials/regenerate-batch` | Regenera de forma atómica hasta 100 credenciales de jueces seleccionados; solo superadministrador. |
+| `POST` | `/api/v1/admin/judges/{id}/access-link` | Genera o reemplaza el enlace personal e invalida sus sesiones; administrador o superadministrador. |
+| `POST` | `/api/v1/admin/judges/access-links` | Reemplaza atómicamente los enlaces de hasta 100 jueces; administrador o superadministrador. |
 | `GET/POST` | `/api/v1/championships/{id}/judge-assignments` | Lista o crea asignaciones por día, banca, jornada y rol. |
 | `POST` | `/api/v1/championships/{id}/judge-assignments/{assignment_id}/reassign` | Reasigna el rol desde la categoría siguiente a la gimnasta activa. |
 | `GET` | `/api/v1/championships/{id}/competition-days/{day_id}/operations` | Entrega categorías, gimnastas y activación actual de ambas bancas. |
@@ -152,14 +179,13 @@ asignación. Para ello, en vez de `judge_id`, envía:
 }
 ```
 
-La respuesta incluye la contraseña inicial una sola vez. Si el juez ya existe,
-se envía `judge_id` y no se generan nuevas credenciales. Las asignaciones se
-mantienen como alcance operativo del juez, no como una restricción horaria de
-inicio de sesión.
+La respuesta incluye `credentials: { username, access_path }` una sola vez,
+sin contraseña. Si el juez ya existe, se envía `judge_id` y no se reemplaza su
+enlace. Las asignaciones y sus ventanas horarias determinan el acceso.
 Las asignaciones iniciales se crean mientras el campeonato está en borrador;
 una vez iniciada la competencia, los cambios usan la ruta de reasignación y
 comienzan automáticamente en la categoría siguiente. Un juez con una
-asignación vigente puede iniciar o recuperar sesión durante todo el campeonato
+asignación vigente puede iniciar o recuperar sesión durante sus ventanas del campeonato
 activo (y mientras esté pausado), pero solo puede registrar notas cuando el
 campeonato está activo y su asignación corresponde a la categoría en curso.
 

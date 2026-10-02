@@ -1,5 +1,6 @@
 from datetime import date
 import uuid
+import pytest
 
 from sqlalchemy import select
 
@@ -157,7 +158,7 @@ def test_championship_lifecycle_enforces_single_active(app, client):
     assert db.session.get(Championship, second.id).closed_at is not None
 
 
-def test_admin_creates_judge_only_during_assignment_and_windows_expand(
+def test_admin_creates_judge_only_during_assignment_and_rejects_duplicate_day_assignment(
     app,
     client,
 ):
@@ -203,7 +204,7 @@ def test_admin_creates_judge_only_during_assignment_and_windows_expand(
     payload = created.get_json()
     judge_id = payload['assignment']['judge']['id']
     assert payload['credentials']['username'] == 'MARIAPEREZ123456785'
-    assert payload['credentials']['password']
+    assert payload['credentials']['access_path']
     assert (
         payload['assignment']['effective_from_category']['id']
         == str(categories['A_AM_1'].id)
@@ -234,18 +235,8 @@ def test_admin_creates_judge_only_during_assignment_and_windows_expand(
         json=assignment_payload(day, judge_id, session='PM', role='E'),
         headers=headers,
     )
-    assert second_assignment.status_code == 201
-    assert second_assignment.get_json()['credentials'] is None
-    second_assignment_id = uuid.UUID(
-        second_assignment.get_json()['assignment']['id']
-    )
-    assert len(
-        db.session.execute(
-            select(ScoreEntry).where(
-                ScoreEntry.judge_assignment_id == second_assignment_id
-            )
-        ).scalars().all()
-    ) == 1
+    assert second_assignment.status_code == 409
+    assert second_assignment.get_json()['code'] == 'JUDGE_DAY_CONFLICT'
 
     line_assignment = client.post(
         f'/api/v1/championships/{championship.id}/judge-assignments',
@@ -258,18 +249,11 @@ def test_admin_creates_judge_only_during_assignment_and_windows_expand(
         },
         headers=headers,
     )
-    assert line_assignment.status_code == 201
-    line_assignment_id = uuid.UUID(
-        line_assignment.get_json()['assignment']['id']
-    )
-    assert db.session.execute(
-        select(ScoreEntry).where(
-            ScoreEntry.judge_assignment_id == line_assignment_id
-        )
-    ).scalar_one_or_none() is None
+    assert line_assignment.status_code == 409
+    assert line_assignment.get_json()['code'] == 'JUDGE_DAY_CONFLICT'
 
     db.session.refresh(window)
-    assert (window.ends_at - window.starts_at).total_seconds() == 16 * 3600
+    assert (window.ends_at - window.starts_at).total_seconds() == 8 * 3600
 
     search = client.get('/api/v1/judges?query=12345678')
     assert search.status_code == 200
@@ -292,7 +276,7 @@ def test_super_admin_can_create_standalone_judge(app, client):
     )
     assert response.status_code == 201
     assert response.get_json()['judge']['rut'] == '123456785'
-    assert response.get_json()['credentials']['password']
+    assert response.get_json()['credentials']['access_path']
 
 
 def test_active_gymnast_is_independent_by_bench_and_advances_after_publication(
@@ -418,6 +402,11 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         'JUEZ2',
         rut='222222222',
     )
+    occupied_judge = create_user(
+        AccountType.JUDGE,
+        'JUEZ3',
+        rut='333333333',
+    )
     championship, day, categories, gymnasts = create_championship_context(
         admin
     )
@@ -432,6 +421,15 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         JudgeAssignment,
         uuid.UUID(assigned.get_json()['assignment']['id']),
     )
+    occupied = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments',
+        json={
+            **assignment_payload(day, occupied_judge.id, role='A'),
+            'bench': 'B',
+        },
+        headers=headers,
+    )
+    assert occupied.status_code == 201
     assert db.session.execute(
         select(JudgeAccessWindow).where(
             JudgeAccessWindow.judge_user_id == old_judge.id
@@ -448,6 +446,17 @@ def test_reassignment_starts_at_category_after_current_activation(app, client):
         json={'gymnast_id': str(gymnasts['A_AM_1'].id)},
         headers=headers,
     ).status_code == 200
+
+    occupied_target = client.post(
+        f'/api/v1/championships/{championship.id}/judge-assignments/'
+        f'{assignment.id}/reassign',
+        json={'judge_id': str(occupied_judge.id)},
+        headers=headers,
+    )
+    assert occupied_target.status_code == 409
+    assert occupied_target.get_json()['code'] == 'JUDGE_DAY_CONFLICT'
+    db.session.refresh(assignment)
+    assert assignment.superseded_at is None
 
     response = client.post(
         f'/api/v1/championships/{championship.id}/judge-assignments/'
@@ -806,3 +815,34 @@ def test_direct_activation_can_switch_and_return(app, client):
     entry = db.session.get(ScoreEntry, original_entry_id)
     assert float(entry.value) == 7.25
     assert entry.activation_id == open_activation.id
+
+
+@pytest.mark.parametrize('role', ['DA', 'DB', 'A', 'E', 'L', 'P'])
+def test_each_area_allows_four_judges_but_rejects_fifth(app, client, role):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, day, _, _ = create_championship_context(admin)
+    headers = login(client, admin.username)
+    for index in range(5):
+        judge = create_user(AccountType.JUDGE, f'LIMIT_JUDGE_{index}', rut=f'1234567{index}5')
+        db.session.commit()
+        response = client.post(
+            f'/api/v1/championships/{championship.id}/judge-assignments',
+            json=assignment_payload(day, judge.id, role=role),
+            headers=headers,
+        )
+        assert response.status_code == (201 if index < 4 else 409)
+        if index == 4:
+            assert response.get_json()['code'] == 'JUDGE_ROLE_LIMIT'
+
+
+def test_day_upload_rejects_date_before_championship_start(app, client):
+    admin = create_user(AccountType.GLOBAL_ADMIN, 'ADMIN')
+    championship, _, _, _ = create_championship_context(admin)
+    headers = login(client, admin.username)
+    response = client.post(
+        f'/api/v1/championships/{championship.id}/import-previews',
+        data={'competition_date': '2026-07-31'},
+        headers=headers,
+    )
+    assert response.status_code == 400
+    assert 'anterior' in response.get_json()['error']

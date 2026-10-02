@@ -12,26 +12,7 @@ from app.models import (
     User,
 )
 from app.security.passwords import hash_password
-
-
-PASSWORD_WORDS = (
-    'Alerce',
-    'Andes',
-    'Atlas',
-    'Brisa',
-    'Canelo',
-    'Cobre',
-    'Condor',
-    'Copihue',
-    'Estrella',
-    'Lago',
-    'Lima',
-    'Luna',
-    'Nube',
-    'Pacifico',
-    'Quillay',
-    'Sol',
-)
+from app.security.judge_links import issue_judge_link
 
 
 class JudgeAccountError(ValueError):
@@ -87,12 +68,6 @@ def build_judge_username(first_name, last_name, rut_normalized):
             'El usuario generado supera el largo permitido'
         )
     return username
-
-
-def generate_initial_password():
-    words = secrets.SystemRandom().sample(PASSWORD_WORDS, 3)
-    number = secrets.randbelow(90) + 10
-    return f'{words[0]}-{words[1]}-{number}-{words[2]}'
 
 
 def find_judge(query):
@@ -151,14 +126,13 @@ def create_judge_account(first_name, last_name, rut, created_by_user_id):
             'El usuario generado ya existe; revise los datos antes de continuar'
         )
 
-    initial_password = generate_initial_password()
     judge = User(
         account_type=AccountType.JUDGE,
         first_name=clean_first_name,
         last_name=clean_last_name,
         rut_normalized=rut_normalized,
         username=username,
-        password_hash=hash_password(initial_password),
+        password_hash=hash_password(secrets.token_urlsafe(32)),
     )
     db.session.add(judge)
     db.session.flush()
@@ -169,7 +143,4 @@ def create_judge_account(first_name, last_name, rut, created_by_user_id):
             created_by_user_id=created_by_user_id,
         )
     )
-    return judge, {
-        'username': username,
-        'password': initial_password,
-    }
+    return judge, issue_judge_link(judge)

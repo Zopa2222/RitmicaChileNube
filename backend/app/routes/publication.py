@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import (
     AccountType,
+    BenchActivation,
     AuditLog,
     Category,
     Championship,
@@ -91,8 +92,19 @@ def error_response(error):
     }), error.status
 
 
+def published_breakdown_response(result):
+    return {
+        field: (
+            decimal_response(getattr(result, field))
+            if getattr(result, field) is not None else None
+        )
+        for field in ('db_score', 'da_score', 'discount')
+    }
+
+
 def published_result_response(result):
     return {
+        **published_breakdown_response(result),
         'gymnast_id': str(result.gymnast_id),
         'display_name': result.display_name,
         'club_name': result.club_name,
@@ -281,6 +293,25 @@ def public_active_championship():
             category['id'],
         )
     )
+    live_gymnasts = db.session.execute(
+        select(BenchActivation, Gymnast, Category)
+        .join(Gymnast, Gymnast.id == BenchActivation.gymnast_id)
+        .join(Category, Category.id == Gymnast.category_id)
+        .where(
+            BenchActivation.championship_id == championship.id,
+            BenchActivation.deactivated_at.is_(None),
+            BenchActivation.competition_day_id == Category.competition_day_id,
+            Category.championship_id == championship.id,
+            Gymnast.deleted_at.is_(None),
+            Category.deleted_at.is_(None),
+        )
+    ).all()
+    live_gymnasts.sort(
+        key=lambda row: (
+            day_by_id[row[2].competition_day_id].sequence,
+            row[0].bench.value,
+        )
+    )
     return jsonify({
         'championship': {
             'id': str(championship.id),
@@ -290,6 +321,20 @@ def public_active_championship():
             'qualifier_number': championship.qualifier_number,
             'start_date': championship.start_date.isoformat(),
         },
+        'live_gymnasts': [
+            {
+                'gymnast_id': str(gymnast.id),
+                'display_name': gymnast.full_name,
+                'category_id': str(category.id),
+                'category_name': category.name,
+                'bench': activation.bench.value,
+                'session': category.session.value,
+                'competition_day_sequence': day_by_id[
+                    category.competition_day_id
+                ].sequence,
+            }
+            for activation, gymnast, category in live_gymnasts
+        ],
         'query': request.args.get('query', '').strip(),
         'categories': category_payload,
     })
@@ -349,6 +394,9 @@ def public_category_results(category_id):
     for gymnast in gymnasts:
         published = published_by_gymnast_id.get(gymnast.id)
         public_results.append({
+            **(published_breakdown_response(published) if published else {
+                'db_score': '0.00', 'da_score': '0.00', 'discount': '0.00',
+            }),
             'gymnast_id': str(gymnast.id),
             'display_name': (
                 published.display_name

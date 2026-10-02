@@ -40,12 +40,20 @@ export class CloudChampionshipApiService {
             .pipe(map((response) => response.championship));
     }
 
+    validateDayFile(file: File): Observable<{ valid: boolean }> {
+        const data = new FormData();
+        data.append('file', file);
+        return this.http.post<{ valid: boolean }>(`${this.apiUrl}/validate-day-file`, data);
+    }
+
     createImportPreview(
         championshipId: string,
-        file: File
+        file: File,
+        competitionDate?: string
     ): Observable<ImportPreview> {
         const formData = new FormData();
         formData.append('file', file);
+        if (competitionDate) formData.append('competition_date', competitionDate);
         return this.http.post<ImportPreview>(
             `${this.apiUrl}/${championshipId}/import-previews`,
             formData
@@ -59,6 +67,16 @@ export class CloudChampionshipApiService {
         return this.http.get<ImportPreview>(
             `${this.apiUrl}/${championshipId}/import-previews/${previewId}`
         );
+    }
+
+    listImportPreviews(
+        championshipId: string
+    ): Observable<ImportPreview[]> {
+        return this.http
+            .get<{ previews: ImportPreview[] }>(
+                `${this.apiUrl}/${championshipId}/import-previews`
+            )
+            .pipe(map((response) => response.previews));
     }
 
     updateImportPreview(
@@ -84,19 +102,29 @@ export class CloudChampionshipApiService {
             days: number;
             categories: number;
             gymnasts: number;
+            new_judge_credentials?: Array<{ judge: string; username: string; access_path: string }>;
         };
     }> {
         return this.http.post<{
             championship: CloudChampionship;
             imported: {
-                days: number;
-                categories: number;
-                gymnasts: number;
+            days: number;
+            categories: number;
+            gymnasts: number;
+            new_judge_credentials?: Array<{ judge: string; username: string; access_path: string }>;
             };
         }>(
             `${this.apiUrl}/${championshipId}/import-previews/${previewId}/confirm`,
             {}
         );
+    }
+
+    addCompetitionDay(
+        championshipId: string,
+        file: File,
+        competitionDate: string
+    ): Observable<ImportPreview> {
+        return this.createImportPreview(championshipId, file, competitionDate);
     }
 
     listCompetitionDays(championshipId: string): Observable<CompetitionDay[]> {

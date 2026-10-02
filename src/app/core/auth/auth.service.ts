@@ -53,7 +53,7 @@ export class AuthService {
 
     login(credentials: LoginCredentials): Observable<AuthenticatedUser> {
         return this.http
-            .post<AuthResponse>(`${this.apiUrl}/login`, credentials)
+            .post<AuthResponse>(`${this.apiUrl}/admin/login`, credentials)
             .pipe(
                 tap((response) => this.authState.setUser(response.user)),
                 map((response) => response.user)
@@ -63,6 +63,13 @@ export class AuthService {
     logout(): Observable<void> {
         return this.http.post<void>(`${this.apiUrl}/logout`, {}).pipe(
             tap(() => this.authState.clear())
+        );
+    }
+
+    accessJudgeLink(token: string): Observable<AuthenticatedUser> {
+        return this.http.post<AuthResponse>(`${this.apiUrl}/judge/link`, { token }).pipe(
+            tap((response) => this.authState.setUser(response.user)),
+            map((response) => response.user)
         );
     }
 }

@@ -77,6 +77,16 @@ export interface ImportCategory {
     gymnasts?: ImportGymnast[];
 }
 
+export interface ImportJudge {
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    rut: string;
+    role: JudgeRole;
+    bench: Bench;
+    session: CompetitionSession;
+}
+
 export interface ImportScopeSummary {
     categories: number;
     gymnasts: number;
@@ -105,6 +115,8 @@ export interface ImportPreviewData {
     total_days: number;
     total_categories: number;
     total_gymnasts: number;
+    judges: ImportJudge[];
+    has_judges_sheet: boolean;
     sheets: ImportPreviewSheet[];
 }
 
@@ -118,7 +130,9 @@ export interface ImportPreview {
     id: string;
     championship_id: string;
     expires_at: string;
+    source_file_name?: string | null;
     decisions: {
+        competition_date?: string;
         sheets: Record<
             string,
             {
@@ -152,7 +166,7 @@ export interface JudgeIdentityInput {
 
 export interface InitialCredentials {
     username: string;
-    password: string;
+    access_path: string;
 }
 
 export interface CategoryReference {

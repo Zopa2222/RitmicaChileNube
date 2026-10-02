@@ -66,6 +66,9 @@ def small_excel():
         1, 'Gimnasta A3', 'Club A', 'JUNIOR A',
         1, 'Gimnasta B3', 'Club B', 'JUNIOR B',
     ])
+    judges = workbook.create_sheet("Jueces")
+    judges.append(["JORNADA AM", None, None, None, None, None])
+    judges.append(["María Pérez", "12.345.678-5", "DA", None, None, None])
     output = BytesIO()
     workbook.save(output)
     workbook.close()
@@ -93,7 +96,7 @@ def test_admin_imports_preview_and_confirms_order_of_passage(app, client):
 
     upload_response = client.post(
         f'/api/v1/championships/{championship_id}/import-previews',
-        data={'file': (small_excel(), 'orden-centro.xlsx')},
+        data={'file': (small_excel(), 'orden-centro.xlsx'), 'competition_date': '2026-08-01'},
         headers=headers,
         content_type='multipart/form-data',
     )
@@ -133,7 +136,8 @@ def test_admin_imports_preview_and_confirms_order_of_passage(app, client):
         headers=headers,
     )
     assert confirmation.status_code == 200
-    assert confirmation.get_json()['imported'] == {
+    imported = confirmation.get_json()['imported']
+    assert {key: imported[key] for key in ('days', 'categories', 'gymnasts')} == {
         'days': 1,
         'categories': 4,
         'gymnasts': 6,
@@ -201,3 +205,139 @@ def test_zone_and_final_validation(app, client):
     response = client.post('/api/v1/championships', json=payload, headers=headers)
     assert response.status_code == 201
     assert response.get_json()['championship']['qualifier_number'] is None
+
+
+def test_validate_day_file_before_creating_championship(app, client):
+    from app.models import Championship, FileObject, ImportPreview
+
+    create_admin()
+    headers = login_headers(client)
+    response = client.post('/api/v1/championships/validate-day-file',
+                           headers=headers, data={'file': (small_excel(), 'dia.xlsx')})
+    assert response.status_code == 200
+    assert response.json == {'valid': True}
+    for model in (Championship, FileObject, ImportPreview):
+        assert db.session.execute(select(model)).scalars().all() == []
+
+
+def test_validate_day_file_reports_category_conflict(app, client):
+    create_admin()
+    headers = login_headers(client)
+    workbook = openpyxl.load_workbook(small_excel())
+    workbook['SABADO']['H2'] = 'MINI A'
+    workbook['Jueces']['F1'] = 'BANCA B'
+    output = BytesIO()
+    workbook.save(output)
+    workbook.close()
+    output.seek(0)
+    response = client.post('/api/v1/championships/validate-day-file',
+                           headers=headers, data={'file': (output, 'dia.xlsx')})
+    assert response.status_code == 400
+    assert 'MINI A' in response.json['error']
+
+
+def test_validate_day_file_requires_login(client):
+    response = client.post('/api/v1/championships/validate-day-file',
+                           data={'file': (small_excel(), 'dia.xlsx')})
+    assert response.status_code == 401
+
+
+def test_admin_can_confirm_two_sequential_day_imports(app, client):
+    from app.models import CompetitionDay
+
+    create_admin()
+    headers = login_headers(client)
+    championship_response = client.post(
+        '/api/v1/championships',
+        json={
+            'name': 'Campeonato de dos días',
+            'kind': 'CLASIFICATORIO',
+            'qualifier_number': 1,
+            'zone': 'CENTRO',
+            'start_date': '2026-09-26',
+        },
+        headers=headers,
+    )
+    assert championship_response.status_code == 201
+    championship_id = championship_response.get_json()['championship']['id']
+
+    preview_ids = []
+    for day_number, competition_date in ((1, '2026-09-26'), (2, '2026-09-27')):
+        workbook = openpyxl.load_workbook(small_excel())
+        sheet = workbook['SABADO']
+        judges = workbook['Jueces']
+        for cell in ('D1', 'E1', 'F1', 'D2', 'E2', 'F2'):
+            judges[cell] = ''
+        if day_number == 2:
+            sheet['D2'] = 'INFANTIL A'
+            sheet['H2'] = 'INFANTIL B'
+            sheet['D3'] = 'INFANTIL A'
+            sheet['H3'] = 'INFANTIL B'
+            sheet['D6'] = 'SENIOR A'
+            sheet['H6'] = 'SENIOR B'
+        output = BytesIO()
+        workbook.save(output)
+        workbook.close()
+        output.seek(0)
+
+        preview_response = client.post(
+            f'/api/v1/championships/{championship_id}/import-previews',
+            data={
+                'file': (output, f'dia-{day_number}.xlsx'),
+                'competition_date': competition_date,
+            },
+            headers=headers,
+            content_type='multipart/form-data',
+        )
+        assert preview_response.status_code == 201
+        preview_ids.append(preview_response.get_json()['id'])
+
+    pending_response = client.get(
+        f'/api/v1/championships/{championship_id}/import-previews',
+        headers=headers,
+    )
+    assert pending_response.status_code == 200
+    pending_previews = pending_response.get_json()['previews']
+    assert len(pending_previews) == 2
+    assert [preview['decisions']['competition_date'] for preview in pending_previews] == [
+        '2026-09-26',
+        '2026-09-27',
+    ]
+    assert [preview['source_file_name'] for preview in pending_previews] == [
+        'dia-1.xlsx',
+        'dia-2.xlsx',
+    ]
+
+    for preview_id in preview_ids:
+        cutoff_response = client.patch(
+            f'/api/v1/championships/{championship_id}/import-previews/{preview_id}',
+            json={'accept_detected': True},
+            headers=headers,
+        )
+        assert cutoff_response.status_code == 200
+
+    for preview_id in preview_ids:
+        confirmation = client.post(
+            f'/api/v1/championships/{championship_id}'
+            f'/import-previews/{preview_id}/confirm',
+            headers=headers,
+        )
+        assert confirmation.status_code == 200
+        assert confirmation.get_json()['imported']['days'] == 1
+
+    detail = client.get(
+        f'/api/v1/championships/{championship_id}',
+        headers=headers,
+    )
+    assert detail.status_code == 200
+    assert detail.get_json()['championship']['counts'] == {
+        'days': 2,
+        'categories': 8,
+        'gymnasts': 12,
+    }
+    assert [
+        day.sequence
+        for day in db.session.execute(
+            select(CompetitionDay).order_by(CompetitionDay.sequence)
+        ).scalars().all()
+    ] == [1, 2]

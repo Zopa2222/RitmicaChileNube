@@ -53,7 +53,6 @@ export class LoginComponent {
     hidePassword = true;
     errorMessage = '';
     readonly sessionExpired: boolean;
-    readonly judgeAccessUnavailable: boolean;
 
     constructor(
         private readonly formBuilder: FormBuilder,
@@ -63,8 +62,6 @@ export class LoginComponent {
     ) {
         this.sessionExpired =
             this.route.snapshot.queryParamMap.get('sessionExpired') === 'true';
-        this.judgeAccessUnavailable =
-            this.route.snapshot.queryParamMap.get('judgeAccessUnavailable') === 'true';
     }
 
     submit(): void {
@@ -101,6 +98,9 @@ export class LoginComponent {
             && returnUrl.startsWith('/')
             && !returnUrl.startsWith('//')
             && returnUrl !== '/ingresar'
+            && returnUrl !== '/administracion/ingresar'
+            && !returnUrl.startsWith('/cabina-juez')
+            && !returnUrl.startsWith('/acceso-juez')
         ) {
             return returnUrl;
         }
@@ -113,8 +113,6 @@ export class LoginComponent {
                 return 'El usuario o la contraseña no son correctos.';
             case 'ACCOUNT_DISABLED':
                 return 'Esta cuenta se encuentra deshabilitada.';
-            case 'JUDGE_ACCESS_NOT_AVAILABLE':
-                return 'Tu cuenta de juez no tiene una asignación vigente en un campeonato en curso.';
             default:
                 return 'No fue posible iniciar sesión. Revisa tu conexión e inténtalo nuevamente.';
         }

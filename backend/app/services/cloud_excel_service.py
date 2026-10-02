@@ -131,7 +131,21 @@ def analyze_excel(contents):
         raise ExcelImportError('El archivo no contiene hojas')
 
     sheets = []
-    for sequence, worksheet in enumerate(workbook.worksheets, 1):
+    day_worksheets = []
+    judge_worksheet = None
+    for worksheet in workbook.worksheets:
+        if normalize_text(worksheet.title) == 'JUECES':
+            judge_worksheet = worksheet
+        else:
+            day_worksheets.append(worksheet)
+
+    if not day_worksheets:
+        workbook.close()
+        raise ExcelImportError('Falta la hoja con el orden de paso del día')
+    judges = _analyze_judges(judge_worksheet) if judge_worksheet else []
+    has_judges_sheet = judge_worksheet is not None
+
+    for sequence, worksheet in enumerate(day_worksheets, 1):
         active_groups = []
         imported_rows = []
         markers = []
@@ -181,6 +195,7 @@ def analyze_excel(contents):
                 category = str(category_value).strip()
                 if (
                     normalize_text(full_name) in {'NOMBRE', 'NAME'}
+                    or normalize_text(full_name).startswith('NOMBRE GIMNASTA')
                     or normalize_text(category) in {'CATEGORIA', 'CATEGORY'}
                 ):
                     continue
@@ -237,7 +252,76 @@ def analyze_excel(contents):
     return {
         'version': 1,
         'sheets': sheets,
+        'judges': judges,
+        'has_judges_sheet': has_judges_sheet,
     }
+
+
+def _analyze_judges(worksheet):
+    """Read judge blocks organized by AM/PM and bench A/B."""
+    judges = []
+    session = None
+    for row_number, row in enumerate(
+        worksheet.iter_rows(values_only=True),
+        1,
+    ):
+        values = list(row)
+        normalized = [normalize_text(value) for value in values]
+        joined = ' '.join(value for value in normalized if value)
+        if 'JORNADA AM' in joined:
+            session = 'AM'
+            continue
+        if 'JORNADA PM' in joined:
+            session = 'PM'
+            continue
+        if session is None:
+            continue
+
+        if any(value.startswith('BANCA') for value in normalized):
+            continue
+        is_header = all(
+            normalized[index] in {'NOMBRE', 'RUT', 'AREA'}
+            for index in (0, 1, 2, 3, 4, 5)
+        )
+        if is_header:
+            continue
+        for bench_index, (name_pos, rut_pos, role_pos) in enumerate(((0, 1, 2), (3, 4, 5))):
+            name = str(values[name_pos] or '').strip()
+            rut = str(values[rut_pos] or '').strip()
+            role_text = normalize_text(values[role_pos])
+            if not name and not rut and not role_text:
+                continue
+            normalized_name = normalize_text(name)
+            if normalized_name.startswith('NOMBRE Y APELLIDO'):
+                continue
+            match = re.fullmatch(r'(DA|DB|A|E|L|P)\s*\d*', role_text)
+            if not name or not rut or not match:
+                raise ExcelImportError(f'Asignación de juez incompleta o rol inválido en Jueces, fila {row_number}')
+            judges.append({
+                'first_name': name.split()[0],
+                'last_name': ' '.join(name.split()[1:]) or name.split()[0],
+                'full_name': name,
+                'rut': rut,
+                'role': match.group(1),
+                'bench': 'A' if bench_index == 0 else 'B',
+                'session': session,
+                'source_row': row_number,
+            })
+
+    unique = {}
+    for judge in judges:
+        key = (judge['session'], judge['bench'], normalize_text(judge['rut']), judge['role'])
+        unique[key] = judge
+    counts = {}
+    for judge in unique.values():
+        scope = (judge['session'], judge['bench'], judge['role'])
+        counts[scope] = counts.get(scope, 0) + 1
+        if counts[scope] > 4:
+            raise ExcelImportError(
+                f"Máximo 4 jueces {judge['role']} por banca y jornada: "
+                f"banca {judge['bench']}, {judge['session']}"
+            )
+    return list(unique.values())
 
 
 def build_sheet_plan(sheet, cutoff_row):
@@ -347,13 +431,16 @@ def render_preview(analysis, decisions=None, include_gymnasts=False):
         'total_days': len(rendered_sheets),
         'total_categories': total_categories,
         'total_gymnasts': total_gymnasts,
+        'judges': analysis.get('judges', []),
+        'has_judges_sheet': analysis.get('has_judges_sheet', False),
         'sheets': rendered_sheets,
     }
 
 
 def validate_cutoff_decisions(analysis, requested_decisions, current=None):
     current = current or {'sheets': {}}
-    result = {'sheets': dict(current.get('sheets', {}))}
+    result = dict(current)
+    result['sheets'] = dict(current.get('sheets', {}))
     sheets_by_sequence = {
         sheet['sequence']: sheet for sheet in analysis['sheets']
     }
@@ -419,3 +506,39 @@ def confirmed_import_plan(analysis, decisions):
             'categories': categories,
         })
     return plan
+
+
+def single_day_analysis(analysis, day_sequence):
+    """Restrict a workbook analysis to its sole non-judge sheet."""
+    sheets = analysis['sheets']
+    if len(sheets) != 1:
+        raise ExcelImportError(
+            'Cada archivo debe contener exactamente una hoja de orden del día'
+        )
+    sheet = dict(sheets[0])
+    sheet['sequence'] = day_sequence
+    return {
+        **analysis,
+        'sheets': [sheet],
+    }
+
+
+def confirmed_single_day_plan(analysis, cutoff_row):
+    if len(analysis['sheets']) != 1:
+        raise ExcelImportError(
+            'Cada archivo debe contener exactamente una hoja de orden del día'
+        )
+    sheet = analysis['sheets'][0]
+    if not cutoff_row:
+        raise ExcelImportError('Debe confirmar el corte entre jornadas AM y PM')
+    categories = build_sheet_plan(sheet, cutoff_row)
+    for category in categories:
+        if category['session'] not in {'AM', 'PM'}:
+            raise ExcelImportError('No fue posible identificar la jornada de una categoría')
+    return {
+        'sequence': sheet['sequence'],
+        'name': sheet['name'],
+        'cutoff_row': cutoff_row,
+        'categories': categories,
+        'judges': analysis.get('judges', []),
+    }

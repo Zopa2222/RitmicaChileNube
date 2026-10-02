@@ -151,6 +151,18 @@ export class SetupComponent implements OnInit {
     private readonly returnToChampionshipDetail =
         this.route.snapshot.queryParamMap.get('returnToDetail') === '1';
 
+    get backLinkRoute(): string[] {
+        return this.returnToChampionshipDetail && this.routeChampionshipId
+            ? ['/championships', this.routeChampionshipId]
+            : ['/championships'];
+    }
+
+    get backLinkLabel(): string {
+        return this.returnToChampionshipDetail
+            ? 'Volver al detalle'
+            : 'Volver a campeonatos';
+    }
+
     constructor(
         private readonly initialImportQueue: InitialImportQueueService,
         private readonly credentialDelivery: CredentialDeliveryService,
@@ -206,6 +218,14 @@ export class SetupComponent implements OnInit {
 
     trackInitialDay(index: number): number {
         return index;
+    }
+
+    openDatePicker(input: HTMLInputElement): void {
+        if (typeof input.showPicker === 'function') {
+            input.showPicker();
+            return;
+        }
+        input.focus();
     }
 
     trackInitialReview(index: number): number {

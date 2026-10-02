@@ -86,6 +86,7 @@ export class ChampionshipDetailComponent implements OnInit {
     downloading = false;
     selectedDayFile: File | null = null;
     selectedDayDate = '';
+    showAddDayForm = false;
     managingAssignments = false;
     errorMessage = '';
 
@@ -277,11 +278,19 @@ export class ChampionshipDetailComponent implements OnInit {
     }
 
     assignmentsForSelectedDay(): JudgeAssignment[] {
+        return this.assignmentsForDay(this.selectedAssignmentDayId);
+    }
+
+    assignmentsForDay(dayId: string): JudgeAssignment[] {
         return this.assignments
-            .filter((assignment) =>
-                assignment.competition_day.id === this.selectedAssignmentDayId
-            )
+            .filter((assignment) => assignment.competition_day.id === dayId)
             .sort((first, second) => {
+                const benchDifference = first.bench.localeCompare(second.bench);
+                if (benchDifference !== 0) return benchDifference;
+
+                const sessionDifference = first.session.localeCompare(second.session);
+                if (sessionDifference !== 0) return sessionDifference;
+
                 const roleDifference = this.assignmentRoleOrder(first.role)
                     - this.assignmentRoleOrder(second.role);
                 if (roleDifference !== 0) return roleDifference;
@@ -298,7 +307,7 @@ export class ChampionshipDetailComponent implements OnInit {
     }
 
     assignmentRoleLabel(assignment: JudgeAssignment): string {
-        const matchingAssignments = this.assignmentsForSelectedDay()
+        const matchingAssignments = this.assignmentsForDay(assignment.competition_day.id)
             .filter((item) => item.role === assignment.role
                 && item.bench === assignment.bench && item.session === assignment.session);
         return `${assignment.role}${matchingAssignments.findIndex((item) =>
@@ -327,7 +336,11 @@ export class ChampionshipDetailComponent implements OnInit {
     availableReplacementJudges(assignment: JudgeAssignment): CloudJudge[] {
         return this.judges.filter((judge) =>
             judge.id !== assignment.judge.id
-            && !this.isJudgeAssignedOnSelectedDay(judge.id, assignment.id));
+            && !this.isJudgeAssignedOnSelectedDay(
+                judge.id,
+                assignment.id,
+                assignment.competition_day.id
+            ));
     }
 
     isReplacementJudgeAvailable(assignment: JudgeAssignment): boolean {
@@ -342,10 +355,11 @@ export class ChampionshipDetailComponent implements OnInit {
 
     private isJudgeAssignedOnSelectedDay(
         judgeId: string,
-        excludedAssignmentId?: string
+        excludedAssignmentId?: string,
+        dayId = this.selectedAssignmentDayId
     ): boolean {
         return this.assignments.some((assignment) =>
-            assignment.competition_day.id === this.selectedAssignmentDayId
+            assignment.competition_day.id === dayId
             && assignment.id !== excludedAssignmentId
             && assignment.judge.id === judgeId
         );

@@ -1,5 +1,5 @@
 <section class="scoring-page" [class.embedded]="embedded">
-    <a *ngIf="!embedded" mat-button [routerLink]="['/championships', championshipId, 'operations']"><mat-icon>arrow_back</mat-icon> Operación</a>
+    <a *ngIf="!embedded" mat-button class="workflow-back-link" [routerLink]="['/championships', championshipId, 'operations']"><mat-icon>arrow_back</mat-icon> Volver a operación</a>
     <header *ngIf="scoring as data">
         <div><span class="eyebrow">Planilla cloud</span><h1>{{ data.category.name }}</h1>
             <p>Banca {{ data.category.bench }} · {{ data.category.session }} · {{ data.competition_day.date }}</p></div>

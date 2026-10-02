@@ -1,20 +1,20 @@
 <main class="export-page">
-    <a mat-button [routerLink]="['/championships', championshipId, 'operations']">
+    <a mat-button class="workflow-back-link" [routerLink]="['/championships', championshipId, 'operations']">
         <mat-icon>arrow_back</mat-icon>
-        Operación
+        Volver a operación
     </a>
 
     <section>
-        <mat-icon>download</mat-icon>
+        <mat-icon class="export-hero-icon" aria-hidden="true">download</mat-icon>
         <h1>Exportar resultados</h1>
         <p>Los documentos se generan desde el cálculo autoritativo de PostgreSQL y se resguardan en el almacenamiento privado.</p>
-        <div>
-            <button mat-flat-button color="primary" type="button" (click)="download('excel')" [disabled]="downloading">
-                <mat-icon>table_view</mat-icon>
+        <div class="export-actions">
+            <button mat-flat-button color="primary" type="button" class="export-action excel-action" (click)="download('excel')" [disabled]="downloading">
+                <mat-icon aria-hidden="true">table_view</mat-icon>
                 Exportar Excel
             </button>
-            <button mat-stroked-button type="button" (click)="download('pdf')" [disabled]="downloading">
-                <mat-icon>picture_as_pdf</mat-icon>
+            <button mat-stroked-button type="button" class="export-action pdf-action" (click)="download('pdf')" [disabled]="downloading">
+                <mat-icon aria-hidden="true">picture_as_pdf</mat-icon>
                 Exportar PDF
             </button>
         </div>

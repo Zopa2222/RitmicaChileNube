@@ -3,7 +3,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 import { JudgeLinkDeliveryComponent } from '../../shared/judge-link-delivery.component';
@@ -24,7 +24,7 @@ import {
 @Component({
     selector: 'app-cloud-administration',
     standalone: true,
-    imports: [JudgeLinkDeliveryComponent, CommonModule, FormsModule, ReactiveFormsModule, MatButtonModule, MatIconModule],
+    imports: [JudgeLinkDeliveryComponent, CommonModule, FormsModule, ReactiveFormsModule, MatButtonModule, MatIconModule, RouterLink],
     templateUrl: './cloud-administration.component.html',
     styleUrls: ['./cloud-administration.component.scss']
 })

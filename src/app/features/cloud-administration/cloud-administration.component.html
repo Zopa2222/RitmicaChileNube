@@ -1,4 +1,14 @@
 <main class="administration-page">
+    <a
+        *ngIf="!isConfiguration"
+        mat-button
+        class="back-link"
+        routerLink="/administracion"
+        aria-label="Volver al menú general de administración"
+        title="Volver a administración">
+        <mat-icon>arrow_back</mat-icon>
+        Volver a administración
+    </a>
     <header class="page-header">
         <span class="eyebrow">{{ isConfiguration ? 'Superadministración' : 'Administración' }}</span>
         <h1>{{ isConfiguration ? 'Configuración' : 'Jueces' }}</h1>

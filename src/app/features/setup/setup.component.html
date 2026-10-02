@@ -1,8 +1,8 @@
 <main class="setup-page">
     <app-judge-link-delivery></app-judge-link-delivery>
-    <a mat-button routerLink="/championships" class="back-link">
+    <a mat-button [routerLink]="backLinkRoute" class="back-link workflow-back-link">
         <mat-icon>arrow_back</mat-icon>
-        Volver a campeonatos
+        {{ backLinkLabel }}
     </a>
 
     <header class="page-header">
@@ -89,9 +89,19 @@
                     <mat-form-field appearance="outline">
                         <mat-label>Fecha del primer día</mat-label>
                         <input
+                            #startDatePicker
                             matInput
                             type="date"
                             formControlName="start_date">
+                        <button
+                            mat-icon-button
+                            matSuffix
+                            type="button"
+                            aria-label="Abrir calendario para la fecha del primer día"
+                            [disabled]="loading"
+                            (click)="openDatePicker(startDatePicker)">
+                            <mat-icon>calendar_month</mat-icon>
+                        </button>
                         <mat-hint>
                             Los días de competencia se asignan automáticamente desde esta fecha.
                         </mat-hint>

@@ -1,1 +1,90 @@
-.export-page{max-width:720px;margin:0 auto;padding:2rem}.export-page section{margin-top:1rem;background:#fff;border-radius:1rem;padding:2rem;text-align:center;box-shadow:0 2px 12px #cbd5e1}.export-page mat-icon{font-size:3rem;width:3rem;height:3rem;color:#4f46e5}.export-page div{display:flex;justify-content:center;gap:1rem;margin-top:1.5rem}@media(max-width:600px){.export-page{padding:1rem}}
+.export-page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.export-page section {
+    margin-top: 1rem;
+    padding: 2rem;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 2px 12px #cbd5e1;
+    text-align: center;
+}
+
+.export-page .export-hero-icon {
+    width: 3rem;
+    height: 3rem;
+    color: #4f46e5;
+    font-size: 3rem;
+}
+
+.export-page .export-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.export-page .export-action {
+    display: inline-flex;
+    min-width: 210px;
+    min-height: 56px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+    padding: 0 1.5rem;
+    border-radius: 14px !important;
+    font-size: 0.95rem;
+    font-weight: 750 !important;
+    line-height: 1.2;
+}
+
+.export-page .export-action mat-icon {
+    width: 23px;
+    height: 23px;
+    margin: 0;
+    color: currentColor;
+    font-size: 23px;
+    line-height: 23px;
+}
+
+.export-page .pdf-action {
+    border: 2px solid #4338ca;
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.export-page .pdf-action:hover:not(:disabled) {
+    border-color: #312e81;
+    background: #e0e7ff;
+}
+
+.export-page .export-action:focus-visible {
+    outline: 3px solid #a5b4fc;
+    outline-offset: 3px;
+}
+
+.export-page .export-action:disabled {
+    opacity: 0.65;
+}
+
+@media (max-width: 600px) {
+    .export-page {
+        padding: 1rem;
+    }
+
+    .export-page section {
+        padding: 1.5rem 1rem;
+    }
+
+    .export-page .export-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .export-page .export-action {
+        width: 100%;
+    }
+}

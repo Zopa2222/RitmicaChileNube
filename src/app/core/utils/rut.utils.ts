@@ -35,9 +35,9 @@ export function formatRut(value: unknown): string {
 }
 
 /**
- * Formats a RUT while it is being typed. A check digit is recognized after a
- * hyphen, or after an eight-digit body, so seven-digit RUTs remain easy to
- * enter as `1.234.567-8`.
+ * Formats a RUT while it is being typed. Eight unseparated characters are
+ * treated as a seven-digit body plus check digit; nine are treated as an
+ * eight-digit body plus check digit. A hyphen keeps the boundary explicit.
  */
 export function formatRutInput(value: unknown): string {
     const raw = String(value ?? '').toLocaleUpperCase('es-CL');
@@ -45,10 +45,21 @@ export function formatRutInput(value: unknown): string {
 
     if (dashIndex >= 0) {
         const body = raw.slice(0, dashIndex).replace(/\D/g, '').slice(0, 8);
-        const checkDigit = raw.slice(dashIndex + 1)
-            .replace(/[^0-9K]/g, '')
-            .slice(0, 1);
+        const trailingCharacters = raw.slice(dashIndex + 1).replace(/[^0-9K]/g, '');
+        const checkDigit = trailingCharacters.slice(0, 1);
+
+        // If a short RUT was auto-formatted after its eighth character, allow
+        // the user to continue typing an eight-digit body and its check digit.
+        if (body.length === 7 && trailingCharacters.length > 1) {
+            const continuedRut = body + trailingCharacters;
+            return `${formatRutBody(continuedRut.slice(0, 8))}-${continuedRut.slice(8, 9)}`;
+        }
         return `${formatRutBody(body)}-${checkDigit}`;
+    }
+
+    const unseparatedRut = raw.replace(/[^0-9K]/g, '');
+    if (unseparatedRut.length === 8) {
+        return `${formatRutBody(unseparatedRut.slice(0, 7))}-${unseparatedRut.slice(7)}`;
     }
 
     let body = '';
